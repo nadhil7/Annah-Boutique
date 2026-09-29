@@ -1,0 +1,4 @@
+"use client";
+import { useOrderStore } from "@/stores/orderStore";
+import { formatINR } from "@/lib/utils";
+export function OrdersContent(){const orders=useOrderStore(s=>s.orders);if(!orders.length)return <p className="mt-8 rounded-xl border border-border p-8 text-muted-foreground">No demo orders yet. Orders placed through checkout appear here on this device.</p>;return <div className="mt-8 space-y-4">{orders.map(o=><article key={o.id} className="rounded-xl border border-border p-6"><div className="flex flex-wrap justify-between gap-2"><div><h2 className="font-medium">{o.id}</h2><p className="mt-1 text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("en-IN")} · Demo order</p></div><strong>{formatINR(o.total)}</strong></div><p className="mt-4 text-sm">{o.items.map(i=>`${i.name} × ${i.quantity}`).join(" · ")}</p><p className="mt-2 text-xs capitalize text-muted-foreground">{o.status} · {o.paymentMethod.replaceAll("-"," ")}</p></article>)}</div>;}

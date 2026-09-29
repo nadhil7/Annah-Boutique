@@ -1,0 +1,9 @@
+{
+  "name": "Annah Boutique",
+  "short_name": "Annah",
+  "description": "Thoughtfully chosen Indian wear from Annah Boutique.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8f5",
+  "theme_color": "#b17b78"
+}
