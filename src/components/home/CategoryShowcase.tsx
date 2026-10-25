@@ -11,16 +11,7 @@ interface CategoryShowcaseProps {
 }
 
 export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
-  const displayCategories = categories.length > 0 ? categories : [
-    { slug: "kurtis", name: "Kurtis", description: "", image: "/categories/kurtis.webp" },
-    { slug: "sarees", name: "Sarees", description: "", image: "/categories/sarees.webp" },
-    { slug: "dresses", name: "Dresses", description: "", image: "/categories/dresses.webp" },
-    { slug: "co-ord-sets", name: "Co-ord Sets", description: "", image: "/categories/coord-sets.webp" },
-    { slug: "tops", name: "Tops", description: "", image: "/categories/tops.webp" },
-    { slug: "bottom-wear", name: "Bottom Wear", description: "", image: "/categories/bottom-wear.webp" },
-    { slug: "party-wear", name: "Party Wear", description: "", image: "/categories/party-wear.webp" },
-    { slug: "festive-wear", name: "Festive Wear", description: "", image: "/categories/festive-wear.webp" },
-  ].slice(0, 8);
+  const displayCategories = categories;
 
   return (
     <section className="container-editorial mx-auto py-14 px-4 sm:px-6">
@@ -36,7 +27,7 @@ export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
             )}
           >
             <Image
-              src={cat.image || `/banners/category-${cat.slug}.webp`}
+              src={cat.image || "/logo.svg"}
               alt={cat.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1200px) 25vw, 20vw"

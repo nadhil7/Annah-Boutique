@@ -112,12 +112,7 @@ export function ProductCard({
             )}
           </div>
 
-          <div className="flex items-center gap-1 pt-0.5">
-            <Star className="w-3 h-3 fill-gold text-gold" />
-            <span className="text-xs text-muted-foreground">
-              {product.rating.toFixed(1)} ({product.reviewCount})
-            </span>
-          </div>
+          {product.reviewCount > 0 && <div className="flex items-center gap-1 pt-0.5"><Star className="w-3 h-3 fill-gold text-gold" /><span className="text-xs text-muted-foreground">{product.rating.toFixed(1)} ({product.reviewCount})</span></div>}
         </div>
       </div>
     </Link>

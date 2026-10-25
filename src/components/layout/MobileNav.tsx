@@ -19,44 +19,29 @@ import {
   Home,
   ShoppingBag,
   Sparkles,
-  Tag,
   Info,
   Phone,
-  User,
   Heart,
   MessageCircle,
   ChevronRight,
 } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
-
-const categories = [
-  { label: "Sarees", href: "/category/sarees" },
-  { label: "Kurtis & Kurtas", href: "/category/kurtis" },
-  { label: "Dresses", href: "/category/dresses" },
-  { label: "Co-ord Sets", href: "/category/coord-sets" },
-  { label: "Salwar Suits", href: "/category/salwar-suits" },
-  { label: "Lehengas", href: "/category/lehengas" },
-  { label: "Blouses", href: "/category/blouses" },
-  { label: "Accessories", href: "/category/accessories" },
-];
+import { fetchCategories } from "@/lib/catalogApi";
 
 const collections = [
   { label: "Wedding Edit", href: "/collection/wedding" },
   { label: "Festive Collection", href: "/collection/festive" },
   { label: "Summer Essentials", href: "/collection/summer" },
   { label: "Handloom Heritage", href: "/collection/handloom" },
-  { label: "Bestsellers", href: "/collection/bestsellers" },
 ];
 
 const flatLinks = [
   { label: "Home", href: "/", icon: Home },
   { label: "Shop", href: "/shop", icon: ShoppingBag },
   { label: "New Arrivals", href: "/new-arrivals", icon: Sparkles },
-  { label: "Offers", href: "/collection/bestsellers", icon: Tag },
   { label: "About", href: "/about", icon: Info },
   { label: "Contact", href: "/contact", icon: Phone },
-  { label: "Account", href: "/login", icon: User },
   { label: "Wishlist", href: "/wishlist", icon: Heart },
   { label: "Cart", href: "/cart", icon: ShoppingBag },
 ];
@@ -67,6 +52,8 @@ interface MobileNavProps {
 }
 
 export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
+  const [categories, setCategories] = React.useState<Array<{ slug: string; name: string }>>([]);
+  React.useEffect(() => { if (open) fetchCategories().then((items) => setCategories(items)).catch(() => setCategories([])); }, [open]);
   const waLink = `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(
     "Hi Annah Boutique, I'd love to know more!"
   )}`;
@@ -94,13 +81,13 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                 <AccordionContent>
                   <ul className="space-y-1">
                     {categories.map((cat) => (
-                      <li key={cat.href}>
+                      <li key={cat.slug}>
                         <Link
-                          href={cat.href}
+                          href={`/category/${cat.slug}`}
                           onClick={() => onOpenChange(false)}
                           className="flex items-center justify-between py-2 px-2 rounded-md text-sm text-muted-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors"
                         >
-                          <span>{cat.label}</span>
+                          <span>{cat.name}</span>
                           <ChevronRight className="w-3.5 h-3.5 shrink-0 opacity-50" />
                         </Link>
                       </li>

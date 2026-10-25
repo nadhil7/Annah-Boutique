@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Menu, Search, Heart, User, ShoppingBag, ChevronDown } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, Search, Heart, ShoppingBag, ChevronDown } from "lucide-react";
 import MobileNav from "@/components/layout/MobileNav";
 import {
   Dialog,
@@ -23,18 +23,7 @@ const brand = siteConfig;
 const navLinks = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
-  {
-    label: "Categories",
-    href: "/shop",
-    dropdown: [
-      { label: "Sarees", href: "/category/sarees" },
-      { label: "Kurtis", href: "/category/kurtis" },
-      { label: "Dresses", href: "/category/dresses" },
-      { label: "Co-ord Sets", href: "/category/co-ord-sets" },
-      { label: "Tops", href: "/category/tops" },
-      { label: "Festive Wear", href: "/category/festive-wear" },
-    ],
-  },
+  { label: "Categories", href: "/categories" },
   { label: "New Arrivals", href: "/collection/new-arrivals" },
   {
     label: "Collections",
@@ -43,10 +32,8 @@ const navLinks = [
       { label: "Festive Edit", href: "/collection/festive-edit" },
       { label: "Party Wear Edit", href: "/collection/party-wear-edit" },
       { label: "Summer Edit", href: "/collection/summer-edit" },
-      { label: "Bestsellers", href: "/collection/bestsellers" },
     ],
   },
-  { label: "Offers", href: "/collection/bestsellers" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
@@ -62,12 +49,15 @@ function IconBadge({ count }: { count: number }) {
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const pathname = usePathname();
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const router = useRouter();
   const cartCount = useCartStore((s) => s.getItemCount());
   const wishlistCount = useWishlistStore((s) => s.items.length);
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null);
+
+  if (pathname.startsWith("/admin")) return null;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,14 +181,6 @@ export default function Header() {
                 <IconBadge count={wishlistCount} />
               </Button>
             </Link>
-
-            <div className="hidden sm:block">
-              <Link href="/login">
-                <Button variant="ghost" size="icon" aria-label="Account">
-                  <User className="w-5 h-5" />
-                </Button>
-              </Link>
-            </div>
 
             <Link href="/cart">
               <Button variant="ghost" size="icon" aria-label="Cart" className="relative">

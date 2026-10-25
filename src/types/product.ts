@@ -20,13 +20,26 @@ export interface Product {
   isBestseller: boolean;
   tags: string[];
   createdAt: string;
+  categoryId?: string | null;
+  status?: "ACTIVE" | "INACTIVE";
+  variants?: Array<{
+    id: string;
+    sku: string;
+    colour: string;
+    size: string;
+    price: number;
+    availability: "AVAILABLE" | "UNAVAILABLE";
+  }>;
 }
 
 export interface Category {
+  id?: string;
   slug: string;
   name: string;
   description: string;
   image: string;
+  status?: "ACTIVE" | "INACTIVE";
+  sortOrder?: number;
 }
 
 export interface Collection {

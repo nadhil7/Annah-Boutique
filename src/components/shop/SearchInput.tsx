@@ -5,80 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Tag, Shirt } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { siteConfig } from "@/config/_shims";
-import type { Product } from "@/types/_shims";
-
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: "1",
-    slug: "rose-gold-kurti",
-    name: "Rose Gold Embroidered Kurti",
-    description: "",
-    price: 2499,
-    originalPrice: 3499,
-    discount: 29,
-    category: "kurtis",
-    collection: "festive-edit",
-    images: [],
-    colors: ["pink", "gold"],
-    sizes: ["S", "M", "L", "XL"],
-    stock: 15,
-    rating: 4.8,
-    reviewCount: 124,
-    isNew: true,
-    isFeatured: false,
-    isTrending: true,
-    isBestseller: false,
-    tags: [],
-    createdAt: new Date(),
-  },
-  {
-    id: "2",
-    slug: "banarasi-silk-saree",
-    name: "Banarasi Silk Saree - Maroon",
-    description: "",
-    price: 7999,
-    originalPrice: 9999,
-    discount: 20,
-    category: "sarees",
-    collection: "festive-edit",
-    images: [],
-    colors: ["maroon", "gold"],
-    sizes: ["Free Size"],
-    stock: 8,
-    rating: 4.9,
-    reviewCount: 256,
-    isNew: false,
-    isFeatured: true,
-    isTrending: false,
-    isBestseller: true,
-    tags: [],
-    createdAt: new Date(),
-  },
-  {
-    id: "3",
-    slug: "pastel-coord-set",
-    name: "Pastel Mint Co-ord Set",
-    description: "",
-    price: 3299,
-    originalPrice: 4299,
-    discount: 23,
-    category: "co-ord-sets",
-    collection: "summer-edit",
-    images: [],
-    colors: ["green", "beige"],
-    sizes: ["S", "M", "L"],
-    stock: 12,
-    rating: 4.7,
-    reviewCount: 89,
-    isNew: true,
-    isFeatured: false,
-    isTrending: true,
-    isBestseller: false,
-    tags: [],
-    createdAt: new Date(),
-  },
-];
+import { searchSuggestions } from "@/services/productService";
+import type { SearchSuggestion } from "@/services/productService";
 
 export function SearchInput({ className }: { className?: string }) {
   const router = useRouter();
@@ -87,41 +15,14 @@ export function SearchInput({ className }: { className?: string }) {
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const matchedCategories = React.useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return siteConfig.categories.filter((c) =>
-      c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q)
-    );
-  }, [query]);
-
-  const matchedProducts = React.useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return MOCK_PRODUCTS.filter((p) =>
-      p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
-    ).slice(0, 3);
-  }, [query]);
-
-  const suggestions = React.useMemo(() => {
-    const merged: Array<
-      | { type: "category"; href: string; label: string }
-      | { type: "product"; href: string; label: string }
-    > = [];
-    matchedCategories.forEach((c) =>
-      merged.push({ type: "category", href: `/category/${c.slug}`, label: c.name })
-    );
-    matchedProducts.forEach((p) =>
-      merged.push({ type: "product", href: `/product/${p.slug}`, label: p.name })
-    );
-    return merged.slice(0, 5);
-  }, [matchedCategories, matchedProducts]);
+  const [suggestions, setSuggestions] = React.useState<SearchSuggestion[]>([]);
 
   React.useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if (query.trim()) setShowDropdown(true);
-      else setShowDropdown(false);
+      if (!query.trim()) { setSuggestions([]); setShowDropdown(false); return; }
+      searchSuggestions(query).then(setSuggestions).catch(() => setSuggestions([]));
+      setShowDropdown(true);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -171,7 +72,7 @@ export function SearchInput({ className }: { className?: string }) {
                     )}
                     <div className="flex flex-col overflow-hidden">
                       <span className="font-medium truncate text-foreground">
-                        {s.label}
+                        {s.text}
                       </span>
                       <span className="text-xs text-muted-foreground capitalize">
                         {s.type}

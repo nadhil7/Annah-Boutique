@@ -5,25 +5,28 @@ import { Hero } from "@/components/home/Hero";
 import { SectionHeading } from "@/components/home/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { getProducts } from "@/services/productService";
-import { categories } from "@/data/categories";
+import { fetchCategories } from "@/lib/catalogApi";
 import { collections } from "@/data/collections";
 import { heroBanner } from "@/data/banners";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
-  const products = await getProducts();
+  const [products, categories] = await Promise.all([getProducts(), fetchCategories()]);
   const fresh = products.filter((p) => p.isNew).slice(0, 4);
-  const popular = products.filter((p) => p.isTrending).slice(0, 4);
+  const popular = products.filter((p) => p.isFeatured).slice(0, 4);
   return <>
     <Hero data={heroBanner} />
     <section className="container-editorial py-16 md:py-24">
       <SectionHeading eyebrow="Find your feeling" heading="Shop by occasion" subheading="Thoughtfully chosen pieces for every version of you." />
       <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
         {categories.map((c) => <Link key={c.slug} href={`/category/${c.slug}`} className="group relative aspect-[4/5] overflow-hidden rounded-xl bg-secondary">
-          <Image src={c.image} alt={c.name} fill sizes="(max-width:768px) 50vw, 25vw" className="object-cover transition-transform duration-700 group-hover:scale-105" />
+          {c.image ? <Image src={c.image} alt={c.name} fill sizes="(max-width:768px) 50vw, 25vw" className="object-cover transition-transform duration-700 group-hover:scale-105" /> : <div className="absolute inset-0 bg-[#d7c2b7]" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
           <span className="absolute bottom-4 left-4 font-display text-2xl text-white">{c.name}</span>
         </Link>)}
       </div>
+      {!categories.length && <p className="mt-8 rounded-xl border border-border p-8 text-center text-muted-foreground">Categories will appear here once the admin adds them.</p>}
     </section>
     <section className="bg-[#f4eee8] py-16 md:py-24"><div className="container-editorial">
       <SectionHeading eyebrow="Just arrived" heading="New season, new stories" ctaHref="/collection/new-arrivals" ctaLabel="View all" />

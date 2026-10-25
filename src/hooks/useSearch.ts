@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { searchSuggestions } from "@/services/productService";
 import type { SearchSuggestion } from "@/services/productService";
-import { products } from "@/data/products";
 
 export interface UseSearchReturn {
   query: string;
@@ -30,7 +29,7 @@ export function useSearch(initial: string = "", delay: number = 300): UseSearchR
     setIsLoading(true);
     let cancelled = false;
     Promise.resolve()
-      .then(() => searchSuggestions(products, q))
+      .then(() => searchSuggestions(q))
       .then((s) => {
         if (!cancelled) {
           setSuggestions(s);

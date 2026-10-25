@@ -1,4 +1,5 @@
 import { queryProducts } from "@/services/productService";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { SearchPageInput } from "@/components/shop/SearchPageInput";
+export const dynamic = "force-dynamic";
 export default async function SearchPage({searchParams}:{searchParams:Promise<{q?:string}>}) { const {q=""}=await searchParams; const result=await queryProducts({q,limit:24}); return <div className="container-editorial py-12"><p className="text-xs uppercase tracking-[.2em] text-primary">Search Annah</p><h1 className="mt-3 font-display text-5xl">{q ? `Results for “${q}”` : "What are you looking for?"}</h1><div className="mt-7 max-w-xl"><SearchPageInput initialQuery={q}/></div><p className="mt-5 text-sm text-muted-foreground">{result.total} pieces found</p><div className="mt-7"><ProductGrid products={result.items}/></div></div>; }

@@ -15,13 +15,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
+import { usePathname } from "next/navigation";
 import { siteConfig } from "@/config/site";
 
 const shopLinks = [
   { label: "New Arrivals", href: "/collection/new-arrivals" },
   { label: "Collections", href: "/collections" },
   { label: "All Categories", href: "/shop" },
-  { label: "Bestsellers", href: "/collection/bestsellers" },
 ];
 
 const infoLinks = [
@@ -35,6 +35,7 @@ const infoLinks = [
 
 export default function Footer() {
   const [email, setEmail] = React.useState("");
+  const pathname = usePathname();
   const { toast } = useToast();
 
   const handleNewsletter = (e: React.FormEvent) => {
@@ -49,6 +50,8 @@ export default function Footer() {
   const waLink = `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(
     "Hi Annah Boutique, I'd love to know more!"
   )}`;
+
+  if (pathname.startsWith("/admin")) return null;
 
   return (
     <footer className="bg-cream-deep/60 border-t border-border mt-auto">
@@ -82,11 +85,11 @@ export default function Footer() {
                 className="flex items-start gap-3 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Mail className="w-4 h-4 mt-0.5 shrink-0 text-gold" />
-                <span>{siteConfig.email}</span>
+                <span className="min-w-0 break-words">{siteConfig.email}</span>
               </a>
               <div className="flex items-start gap-3 text-muted-foreground">
                 <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-gold" />
-                <span>{siteConfig.address}</span>
+                <span className="min-w-0 break-words">{siteConfig.address}</span>
               </div>
             </div>
           </div>
@@ -206,7 +209,7 @@ export default function Footer() {
 
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-2">
-              Demo checkout only
+              Secure WhatsApp ordering
             </span>
           </div>
         </div>

@@ -1,6 +1,29 @@
 "use client";
+
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cartStore";
-import { useOrderStore } from "@/stores/orderStore";
+import { catalogFetch } from "@/lib/catalogApi";
 import { formatINR } from "@/lib/utils";
-export function CheckoutForm(){const router=useRouter();const items=useCartStore(s=>s.items);const subtotal=useCartStore(s=>s.getSubtotal());const clear=useCartStore(s=>s.clearCart);const place=useOrderStore(s=>s.placeOrder);function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();if(!items.length)return;const data=new FormData(e.currentTarget);const order=place({items,subtotal,discount:0,total:subtotal,paymentMethod:String(data.get("payment")),shipping:{name:String(data.get("name")),phone:String(data.get("phone")),address:String(data.get("address")),city:String(data.get("city")),state:String(data.get("state")),pincode:String(data.get("postal")),country:"India"}});clear();router.push(`/account/orders?placed=${order.id}`);}if(!items.length)return <div className="mt-8 rounded-xl border border-border p-8">Your bag is empty. <a className="underline" href="/shop">Shop the collection</a></div>;return <form onSubmit={submit} className="mt-8 grid lg:grid-cols-[1fr_340px] gap-10"><div className="space-y-7"><fieldset className="grid sm:grid-cols-2 gap-4 rounded-xl border border-border p-6"><legend className="px-2 font-display text-2xl">Customer & delivery</legend>{[["name","Full name"],["email","Email address"],["phone","Phone number"],["address","Street address"],["city","City"],["state","State"],["postal","PIN code"]].map(([id,label])=><label key={id} className="grid gap-1 text-sm">{label}<input name={id} required className="rounded-md border border-border bg-transparent px-3 py-2"/></label>)}</fieldset><fieldset className="rounded-xl border border-border p-6"><legend className="px-2 font-display text-2xl">Payment method</legend><label className="flex items-center gap-3 py-2"><input type="radio" name="payment" value="cash-on-delivery" defaultChecked/> Cash on delivery (demo)</label><label className="flex items-center gap-3 py-2"><input type="radio" name="payment" value="mock-online"/> Online payment (demo only)</label><p className="mt-2 text-xs text-muted-foreground">No payment provider is connected and no charge will be made.</p></fieldset></div><aside className="h-fit rounded-xl bg-[#f4eee8] p-6"><h2 className="font-display text-2xl">Order summary</h2>{items.map(i=><div key={`${i.productId}-${i.size}-${i.color}`} className="mt-3 flex justify-between gap-4 text-sm"><span>{i.name} × {i.quantity}</span><span>{formatINR(i.price*i.quantity)}</span></div>)}<div className="my-5 border-t border-border"/><div className="flex justify-between font-semibold"><span>Total</span><span>{formatINR(subtotal)}</span></div><button className="mt-6 w-full rounded-full bg-[#392a25] px-5 py-3 text-white">Place demo order</button></aside></form>;}
+
+export function CheckoutForm() {
+  const router = useRouter();
+  const items = useCartStore((state) => state.items);
+  const subtotal = useCartStore((state) => state.getSubtotal());
+  const clear = useCartStore((state) => state.clearCart);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      if (items.some((item) => !item.variantId)) throw new Error("Please remove old cart items and select the product variant again.");
+      const result = await catalogFetch<{ whatsappUrl: string | null }>("/order-inquiries", { method: "POST", body: JSON.stringify({ items: items.map((item) => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity })), anonymousId: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : undefined }) });
+      clear();
+      if (result.whatsappUrl) window.location.assign(result.whatsappUrl); else router.push("/checkout/success");
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to create the inquiry"); } finally { setBusy(false); }
+  }
+
+  if (!items.length) return <div className="mt-8 rounded-xl border border-border p-8">Your bag is empty. <a className="underline" href="/shop">Shop the collection</a></div>;
+  return <form onSubmit={submit} className="mt-8 grid gap-10 lg:grid-cols-[1fr_340px]"><div className="rounded-xl border border-border p-6"><h2 className="font-display text-2xl">Ready to enquire?</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">We will verify current availability and send a complete product summary to Annah Boutique on WhatsApp. You do not need a customer account.</p>{error && <p className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button disabled={busy} className="mt-7 rounded-full bg-[#25D366] px-6 py-3 font-medium text-white disabled:opacity-50">{busy ? "Preparing inquiry…" : "Continue on WhatsApp"}</button></div><aside className="h-fit rounded-xl bg-[#f4eee8] p-6"><h2 className="font-display text-2xl">Order summary</h2>{items.map((item) => <div key={`${item.productId}-${item.color}-${item.size}`} className="mt-3 flex justify-between gap-4 text-sm"><span>{item.name} · {item.color} · {item.size} × {item.quantity}</span><span className="whitespace-nowrap">{formatINR(item.price * item.quantity)}</span></div>)}<div className="my-5 border-t border-border" /><div className="flex justify-between font-semibold"><span>Estimated total</span><span>{formatINR(subtotal)}</span></div><p className="mt-3 text-xs text-muted-foreground">The backend reads the current database price when creating the inquiry.</p></aside></form>;
+}

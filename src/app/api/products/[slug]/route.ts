@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import localRepo from "@/repositories/productRepository";
 import type { ApiResponse, Product } from "@/types/product";
+import { getProductBySlug } from "@/services/productService";
 
 export async function GET(
   _request: Request,
@@ -8,7 +8,7 @@ export async function GET(
 ): Promise<NextResponse<ApiResponse<Product>>> {
   try {
     const { slug } = await context.params;
-    const product = await localRepo.getProductBySlug(slug);
+    const product = await getProductBySlug(slug);
 
     if (!product) {
       return NextResponse.json(

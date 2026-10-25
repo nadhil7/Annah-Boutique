@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import localRepo from "@/repositories/productRepository";
 import type { ApiResponse, Product } from "@/types/product";
-import { searchSuggestions } from "@/services/productService";
+import { queryProducts, searchSuggestions } from "@/services/productService";
 import type { SearchSuggestion } from "@/services/productService";
 
 interface SearchResponse {
@@ -17,9 +16,8 @@ export async function GET(
     const q = searchParams.get("q") ?? "";
     const trimmed = q.trim();
 
-    const items = trimmed ? await localRepo.searchProducts(trimmed) : [];
-    const all = await localRepo.getProducts();
-    const suggestions = searchSuggestions(all, trimmed);
+    const items = trimmed ? (await queryProducts({ q: trimmed, limit: 24 })).items : [];
+    const suggestions = await searchSuggestions(trimmed);
 
     return NextResponse.json({
       success: true,

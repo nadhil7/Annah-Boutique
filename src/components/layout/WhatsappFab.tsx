@@ -4,8 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { usePathname } from "next/navigation";
 
 export default function WhatsappFab() {
+  const pathname = usePathname();
   const [pulse, setPulse] = React.useState(true);
 
   React.useEffect(() => {
@@ -14,6 +16,8 @@ export default function WhatsappFab() {
     }, 6000);
     return () => clearTimeout(timer);
   }, []);
+
+  if (pathname.startsWith("/admin")) return null;
 
   const waLink = `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(
     "Hi Annah Boutique, I'd love to know more!"

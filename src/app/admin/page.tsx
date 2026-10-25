@@ -1,0 +1,14 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { ArrowRight, FolderTree, Package, ShoppingBag, Sparkles } from "lucide-react";
+import { adminApi, type DashboardStats } from "@/lib/adminApi";
+
+export default function AdminDashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { adminApi.dashboard().then(setStats).catch((err) => setError(err instanceof Error ? err.message : "Unable to load dashboard")); }, []);
+  const cards = stats ? [["Active products", stats.activeProducts, Package], ["Active categories", stats.activeCategories, FolderTree], ["Available variants", stats.availableVariants, Sparkles], ["Order inquiries", stats.inquiries, ShoppingBag]] as const : [];
+  return <><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-[.24em] text-primary">Admin studio</p><h1 className="mt-2 font-display text-4xl sm:text-5xl">Good morning</h1><p className="mt-3 text-muted-foreground">Manage the live catalog that customers see.</p></div><Link href="/" target="_blank" className="rounded-full border border-border bg-white px-4 py-2 text-sm">View storefront <ArrowRight className="ml-1 inline" size={15} /></Link></div>{error && <p className="mt-8 rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</p>}<div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats ? cards.map(([label, value, Icon]) => <div key={label} className="rounded-2xl border border-border bg-white p-5"><Icon size={19} className="text-primary" /><p className="mt-5 text-sm text-muted-foreground">{label}</p><p className="mt-1 font-display text-4xl">{value}</p></div>) : Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl bg-white/70" />)}</div><div className="mt-8 grid gap-5 md:grid-cols-2"><Link href="/admin/products" className="rounded-2xl border border-border bg-white p-6 hover:shadow-premium"><p className="text-xs uppercase tracking-[.2em] text-primary">Catalog</p><h2 className="mt-3 font-display text-3xl">Add a product</h2><p className="mt-2 text-sm text-muted-foreground">Create variants, prices, availability, and images.</p><span className="mt-6 inline-flex items-center gap-2 text-sm">Open products <ArrowRight size={15} /></span></Link><Link href="/admin/categories" className="rounded-2xl border border-border bg-white p-6 hover:shadow-premium"><p className="text-xs uppercase tracking-[.2em] text-primary">Taxonomy</p><h2 className="mt-3 font-display text-3xl">Manage categories</h2><p className="mt-2 text-sm text-muted-foreground">Keep storefront navigation and filters current.</p><span className="mt-6 inline-flex items-center gap-2 text-sm">Open categories <ArrowRight size={15} /></span></Link></div></>;
+}

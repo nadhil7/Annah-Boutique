@@ -79,7 +79,7 @@ export default function RootLayout({
       lang="en-IN"
       className={`${display.variable} ${sans.variable} ${script.variable}`}
     >
-      <body className="min-h-screen flex flex-col font-sans antialiased">
+      <body className="min-h-screen flex flex-col overflow-x-hidden font-sans antialiased">
         <AnnouncementBar />
         <Header />
         <main className="min-h-screen flex-1 flex flex-col">{children}</main>

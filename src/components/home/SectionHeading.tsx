@@ -40,7 +40,7 @@ export function SectionHeading({
           )}
           <div className="flex w-full items-center justify-between gap-6">
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-            <h2 className="font-display font-medium tracking-tight text-heading-1 text-foreground whitespace-nowrap px-3">
+            <h2 className="min-w-0 px-3 text-center font-display font-medium tracking-tight text-heading-1 text-foreground">
               {heading}
             </h2>
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />

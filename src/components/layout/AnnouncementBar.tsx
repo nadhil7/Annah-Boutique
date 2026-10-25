@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Truck, MessageCircle } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
 export default function AnnouncementBar() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/admin")) return null;
+
   const waLink = `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(
     "Hi Annah Boutique, I'd love to know more!"
   )}`;

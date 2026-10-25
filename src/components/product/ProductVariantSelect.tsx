@@ -45,11 +45,14 @@ const SIZE_CHART_DATA = [
 ];
 
 interface ProductVariantSelectProps {
-  product: Pick<Product, "colors" | "sizes" | "stock" | "name" | "price">;
+  product: Pick<Product, "colors" | "sizes" | "stock" | "name" | "price" | "variants">;
   onVariantChange?: (variant: {
     color: string | null;
     size: string | null;
     quantity: number;
+    variantId?: string;
+    price: number;
+    available: boolean;
   }) => void;
 }
 
@@ -64,17 +67,22 @@ export function ProductVariantSelect({
     product.sizes[0] ?? null
   );
   const [quantity, setQuantity] = React.useState(1);
+  const selectedVariant = product.variants?.find((variant) => variant.colour === selectedColor && variant.size === selectedSize);
+  const selectedPrice = selectedVariant ? Number(selectedVariant.price) : product.price;
+  const available = selectedVariant?.availability === "AVAILABLE";
 
   React.useEffect(() => {
     onVariantChange?.({
       color: selectedColor,
       size: selectedSize,
       quantity,
+      variantId: selectedVariant?.id,
+      price: selectedPrice,
+      available,
     });
-  }, [selectedColor, selectedSize, quantity, onVariantChange]);
+  }, [selectedColor, selectedSize, quantity, selectedVariant?.id, selectedPrice, available, onVariantChange]);
 
-  const maxQuantity = Math.max(1, product.stock);
-  const actualStock = product.stock;
+  const maxQuantity = 99;
 
   const incrementQty = () =>
     setQuantity((q) => Math.min(q + 1, maxQuantity));
@@ -180,7 +188,7 @@ export function ProductVariantSelect({
         <div className="flex flex-wrap gap-2">
           {product.sizes.map((size) => {
             const isSelected = selectedSize === size;
-            const isOutOfStock = actualStock === 0;
+            const isOutOfStock = !product.variants?.some((variant) => variant.colour === selectedColor && variant.size === size && variant.availability === "AVAILABLE");
             return (
               <button
                 key={size}
@@ -241,11 +249,11 @@ export function ProductVariantSelect({
       </div>
 
       <div className="flex items-center gap-2">
-        {actualStock > 0 ? (
+        {available ? (
           <span className="inline-flex items-center gap-1.5 text-sm">
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-success font-medium">
-              In stock{actualStock <= 10 ? ` (${actualStock} left)` : ""}
+              Available for order
             </span>
           </span>
         ) : (
@@ -259,11 +267,11 @@ export function ProductVariantSelect({
       <div className="pt-2 pb-1">
         <div className="flex items-baseline gap-3">
           <span className="text-3xl font-semibold text-foreground font-display">
-            {formatINR(product.price * quantity)}
+            {formatINR(selectedPrice * quantity)}
           </span>
           {quantity > 1 && (
             <span className="text-sm text-muted-foreground">
-              ({formatINR(product.price)} each)
+              ({formatINR(selectedPrice)} each)
             </span>
           )}
         </div>

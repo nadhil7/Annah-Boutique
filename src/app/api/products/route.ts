@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
-import localRepo from "@/repositories/productRepository";
 import type { ApiResponse, Product } from "@/types/product";
-import { filterProducts } from "@/utils/sortFilter";
+import { queryProducts } from "@/services/productService";
 
 export async function GET(
   request: Request
 ): Promise<NextResponse<ApiResponse<Product[]>>> {
   try {
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get("category") ?? undefined;
-    const collection = searchParams.get("collection") ?? undefined;
-
-    const all = await localRepo.getProducts();
-    const filtered = filterProducts(all, { category, collection });
+    const result = await queryProducts({ category: searchParams.get("category") ?? undefined, q: searchParams.get("search") ?? undefined, page: Number(searchParams.get("page") || 1), limit: Number(searchParams.get("limit") || 24) });
 
     return NextResponse.json({
       success: true,
-      data: filtered,
+      data: result.items,
     }, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } });
   } catch (err) {
     const message =

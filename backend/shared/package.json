@@ -1,0 +1,1 @@
+{"name":"@annah/shared","version":"1.0.0","private":true,"type":"module","scripts":{"migrate":"node --env-file=../../.env --import=tsx/esm src/migrate.ts"},"exports":{".":"./src/index.ts"},"dependencies":{"jose":"^5.9.6","pg":"^8.13.1"},"devDependencies":{"@types/express":"^5.0.0","@types/pg":"^8.11.10","@types/node":"^22.10.5","tsx":"^4.19.2","typescript":"^5.7.2"}}

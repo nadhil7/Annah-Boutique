@@ -7,9 +7,8 @@ export const siteConfig = {
   instagramUrl: "https://instagram.com/annahboutique",
   facebookUrl: "https://facebook.com/annahboutique",
   phone: "+91 80896 32481",
-  email: "hello@annahboutique.com",
-  address:
-    "14/2, MG Road, Shanti Nagar, Bengaluru, Karnataka 560042, India",
+  email: "annahboutiquemail@gmail.com",
+  address: "Thangal Nagar, Palluruthy, Kochi",
   currency: "INR",
   currencySymbol: "₹",
   logo: "/logo.svg",

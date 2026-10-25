@@ -17,6 +17,15 @@ export function lineKeyOfItem(item: CartItem): CartLineKey {
   return buildCartLineKey(item.productId, item.color, item.size);
 }
 
+function selectedVariant(product: Product, color: string, size: string) {
+  return product.variants?.find((variant) => variant.colour === color && variant.size === size && variant.availability === "AVAILABLE");
+}
+
+function lineDetails(product: Product, color: string, size: string) {
+  const variant = selectedVariant(product, color, size);
+  return { variantId: variant?.id, price: variant ? Number(variant.price) : product.price };
+}
+
 const safeLocalStorage = {
   getItem: (name: string): string | null => {
     if (typeof window === "undefined") return null;
@@ -72,6 +81,7 @@ export function createCartState(): Omit<CartState, "getTotals"> {
       qty: number = 1
     ) {
       const key = buildCartLineKey(product.id, color, size);
+      const details = lineDetails(product, color, size);
       const quantity = Math.max(1, Math.floor(qty));
       this.items = (() => {
         const existing = this.items.find(
@@ -88,12 +98,13 @@ export function createCartState(): Omit<CartState, "getTotals"> {
           ...this.items,
           {
             productId: product.id,
+            variantId: details.variantId,
             slug: product.slug,
             name: product.name,
             image: product.images[0] ?? "",
             color,
             size,
-            price: product.price,
+            price: details.price,
             quantity,
           },
         ];
@@ -182,6 +193,7 @@ export const useCartStore = create<CartState>()(
         addItem(product, color, size, qty = 1) {
           set((state) => {
             const key = buildCartLineKey(product.id, color, size);
+            const details = lineDetails(product, color, size);
             const quantity = Math.max(1, Math.floor(qty));
             const existing = state.items.find(
               (it) => lineKeyOfItem(it) === key
@@ -198,12 +210,13 @@ export const useCartStore = create<CartState>()(
                 ...state.items,
                 {
                   productId: product.id,
+                  variantId: details.variantId,
                   slug: product.slug,
                   name: product.name,
                   image: product.images[0] ?? "",
                   color,
                   size,
-                  price: product.price,
+                  price: details.price,
                   quantity,
                 },
               ];
@@ -276,6 +289,7 @@ export function createTestCartStore() {
     addItem(product, color, size, qty = 1) {
       set((state) => {
         const key = buildCartLineKey(product.id, color, size);
+        const details = lineDetails(product, color, size);
         const quantity = Math.max(1, Math.floor(qty));
         const existing = state.items.find(
           (it) => lineKeyOfItem(it) === key
@@ -292,12 +306,13 @@ export function createTestCartStore() {
             ...state.items,
             {
               productId: product.id,
+              variantId: details.variantId,
               slug: product.slug,
               name: product.name,
               image: product.images[0] ?? "",
               color,
               size,
-              price: product.price,
+              price: details.price,
               quantity,
             },
           ];

@@ -4,14 +4,7 @@ import type {
   ProductResult,
   FilterOptions,
 } from "@/types/product";
-import localRepo from "@/repositories/productRepository";
-import {
-  filterProducts,
-  sortProducts,
-  paginateProducts,
-  extractFilterOptions,
-} from "@/utils/sortFilter";
-import { products } from "@/data/products";
+import { fetchCategories, fetchFilterOptions, fetchProductBySlug, fetchProducts } from "@/lib/catalogApi";
 
 export interface SearchSuggestion {
   type: "product" | "category" | "collection" | "tag";
@@ -20,101 +13,40 @@ export interface SearchSuggestion {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  return localRepo.getProducts();
+  return (await fetchProducts({ limit: 100 })).items;
 }
 
 export async function getProductBySlug(
   slug: string
 ): Promise<Product | null> {
-  return localRepo.getProductBySlug(slug);
+  return fetchProductBySlug(slug);
 }
 
 export async function queryProducts(
   q: ProductQuery
 ): Promise<ProductResult> {
-  const all = q.q
-    ? await localRepo.searchProducts(q.q)
-    : await localRepo.getProducts();
-
-  const filtered = filterProducts(all, q);
-  const sorted = sortProducts(filtered, q.sort ?? "featured");
-  return paginateProducts(sorted, q.page ?? 1, q.limit ?? 12);
+  return fetchProducts(q);
 }
 
-export function getFilterOptions(
-  seed?: Product[]
-): FilterOptions {
-  return extractFilterOptions(seed ?? products);
-}
-
-export function searchSuggestions(
-  sourceProducts: Product[],
-  query: string
-): SearchSuggestion[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-
-  const results: SearchSuggestion[] = [];
-  const seen = new Set<string>();
-
-  const push = (s: SearchSuggestion) => {
-    const key = `${s.type}:${s.text}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    results.push(s);
+export async function getFilterOptions(): Promise<FilterOptions> {
+  const [result, options] = await Promise.all([fetchProducts({ limit: 24 }), fetchFilterOptions()]);
+  return {
+    categories: [...new Set(result.items.map((product) => product.category).filter(Boolean))] as string[],
+    sizes: options.sizes,
+    colors: options.colors,
+    collections: [],
+    priceMin: options.priceMin,
+    priceMax: options.priceMax,
   };
+}
 
-  for (const p of sourceProducts) {
-    if (results.length >= 8) break;
-    if (p.name.toLowerCase().includes(q)) {
-      push({
-        type: "product",
-        text: p.name,
-        href: `/product/${p.slug}`,
-      });
-    }
-  }
-
-  for (const p of sourceProducts) {
-    if (results.length >= 8) break;
-    if (p.category.toLowerCase().includes(q)) {
-      push({
-        type: "category",
-        text: p.category
-          .split("-")
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" "),
-        href: `/category/${p.category}`,
-      });
-    }
-  }
-
-  for (const p of sourceProducts) {
-    if (results.length >= 8) break;
-    if (p.collection.toLowerCase().includes(q)) {
-      push({
-        type: "collection",
-        text: p.collection
-          .split("-")
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" "),
-        href: `/collection/${p.collection}`,
-      });
-    }
-  }
-
-  for (const p of sourceProducts) {
-    if (results.length >= 8) break;
-    for (const t of p.tags) {
-      if (t.toLowerCase().includes(q)) {
-        push({
-          type: "tag",
-          text: t.charAt(0).toUpperCase() + t.slice(1),
-          href: `/shop?q=${encodeURIComponent(t)}`,
-        });
-      }
-    }
-  }
-
-  return results.slice(0, 8);
+export async function searchSuggestions(query: string): Promise<SearchSuggestion[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const [products, categories] = await Promise.all([fetchProducts({ q, limit: 5 }), fetchCategories()]);
+  const lower = q.toLowerCase();
+  return [
+    ...categories.filter((category) => `${category.name} ${category.slug}`.toLowerCase().includes(lower)).slice(0, 3).map((category) => ({ type: "category" as const, text: category.name, href: `/category/${category.slug}` })),
+    ...products.items.slice(0, 5).map((product) => ({ type: "product" as const, text: product.name, href: `/product/${product.slug}` })),
+  ].slice(0, 8);
 }
