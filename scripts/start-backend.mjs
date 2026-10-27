@@ -8,6 +8,7 @@ const gatewayPort = process.env.PORT || "4001";
 const children = new Map();
 let stopping = false;
 let stopPromise;
+const DEFAULT_READINESS_TIMEOUT_MS = 60_000;
 
 function envPresent(name) {
   return typeof process.env[name] === "string" && process.env[name].trim().length > 0;
@@ -45,6 +46,16 @@ function verifyEnvironment() {
   if (missing.length) throw new Error(`required environment configuration is missing or invalid: ${missing.join(", ")}`);
 }
 
+function readinessTimeoutMs() {
+  const configured = process.env.BACKEND_READINESS_TIMEOUT_MS;
+  if (!configured) return DEFAULT_READINESS_TIMEOUT_MS;
+  const timeout = Number(configured);
+  if (!Number.isFinite(timeout) || timeout < 1_000) {
+    throw new Error("BACKEND_READINESS_TIMEOUT_MS must be at least 1000 milliseconds");
+  }
+  return Math.floor(timeout);
+}
+
 function childEnvironment(overrides) {
   return { ...process.env, ...overrides };
 }
@@ -76,9 +87,11 @@ function startService(name, packageName, overrides) {
     stdio: "inherit",
   });
 
+  const service = { name, child, exitInfo: undefined, exited: undefined };
   const exited = new Promise((resolveExit) => {
     child.once("exit", (code, signal) => {
-      resolveExit({ code, signal });
+      service.exitInfo = { code, signal };
+      resolveExit(service.exitInfo);
       console.error(`[backend] ${name} exited: code=${code ?? "none"} signal=${signal ?? "none"}`);
       if (!stopping) {
         const result = signal ? `signal ${signal}` : `exit code ${code}`;
@@ -92,20 +105,30 @@ function startService(name, packageName, overrides) {
     if (!stopping) void stop(1, `${name} could not start: ${error.message}`);
   });
 
-  const service = { name, child, exited };
+  service.exited = exited;
   children.set(name, service);
   return service;
 }
 
-async function waitForHealth(service, url, timeoutMs = 30_000) {
+async function waitForHealth(service, url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   let lastFailure;
 
   while (Date.now() < deadline) {
     if (stopping) throw new Error(`${service.name} startup was interrupted`);
+    if (service.exitInfo) {
+      const { code, signal } = service.exitInfo;
+      throw new Error(`${service.name} exited before becoming healthy (code=${code ?? "none"}, signal=${signal ?? "none"})`);
+    }
 
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      const remainingMs = Math.max(1, deadline - Date.now());
+      const response = await Promise.race([
+        fetch(url, { signal: AbortSignal.timeout(Math.min(2_000, remainingMs)) }),
+        service.exited.then(({ code, signal }) => {
+          throw new Error(`${service.name} exited before becoming healthy (code=${code ?? "none"}, signal=${signal ?? "none"})`);
+        }),
+      ]);
       if (response.ok) {
         console.log(`[backend] ${service.name} is healthy at ${url}`);
         return;
@@ -130,10 +153,10 @@ async function waitForHealth(service, url, timeoutMs = 30_000) {
       }
     }
 
-    await delay(250);
+    await delay(Math.min(250, Math.max(1, deadline - Date.now())));
   }
 
-  throw new Error(`${service.name} did not become healthy at ${url}`);
+  throw new Error(`${service.name} readiness deadline expired after ${timeoutMs}ms at ${url}`);
 }
 
 async function stop(code, reason) {
@@ -163,6 +186,8 @@ process.once("SIGINT", () => void stop(0, "Received SIGINT; stopping backend ser
 
 async function main() {
   verifyEnvironment();
+  const timeoutMs = readinessTimeoutMs();
+  console.log(`[backend] readiness timeout: ${timeoutMs}ms`);
 
   const auth = startService("auth-service", "@annah/auth-service", {
     HOST: "127.0.0.1",
@@ -176,9 +201,12 @@ async function main() {
   });
 
   await Promise.all([
-    waitForHealth(auth, "http://127.0.0.1:4002/health"),
-    waitForHealth(catalog, "http://127.0.0.1:4003/health"),
+    waitForHealth(auth, "http://127.0.0.1:4002/health", timeoutMs),
+    waitForHealth(catalog, "http://127.0.0.1:4003/health", timeoutMs),
   ]);
+  if (stopping || auth.exitInfo || catalog.exitInfo) {
+    throw new Error("a required backend service stopped after becoming healthy");
+  }
 
   const gateway = startService("api-gateway", "@annah/api-gateway", {
     HOST: "0.0.0.0",
@@ -188,7 +216,7 @@ async function main() {
     CATALOG_SERVICE_URL: "http://127.0.0.1:4003",
   });
 
-  await waitForHealth(gateway, `http://127.0.0.1:${gatewayPort}/healthz`);
+  await waitForHealth(gateway, `http://127.0.0.1:${gatewayPort}/healthz`, timeoutMs);
   console.log(`[backend] gateway is ready on port ${gatewayPort}`);
 }
 
