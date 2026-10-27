@@ -140,6 +140,50 @@ app.post("/auth/password", requireAdmin, async (req, res, next) => {
 });
 
 app.use(fail);
-const server = app.listen(Number(process.env.PORT || 4002), process.env.HOST || '127.0.0.1');
-void pool.query("SELECT 1").catch(() => undefined);
-process.on("SIGTERM", () => server.close(() => pool.end()));
+
+const serviceName = "auth-service";
+const port = Number(process.env.PORT || 4002);
+const host = process.env.HOST || "127.0.0.1";
+let server: ReturnType<typeof app.listen> | undefined;
+
+function safeError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+  return `${code ? `[${code}] ` : ""}${message.replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[database-url]")}`;
+}
+
+async function listen() {
+  return new Promise<ReturnType<typeof app.listen>>((resolve, reject) => {
+    const candidate = app.listen(port, host, () => resolve(candidate));
+    candidate.once("error", reject);
+  });
+}
+
+async function start() {
+  console.log(`[${serviceName}] startup configuration: NODE_ENV=${process.env.NODE_ENV || "unset"} HOST=${host} PORT=${port} DATABASE_URL=${process.env.DATABASE_URL ? "set" : "missing"} JWT_SECRET=${process.env.JWT_SECRET ? "set" : "missing"}`);
+  if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
+    throw new Error("DATABASE_URL and JWT_SECRET are required");
+  }
+
+  console.log(`[${serviceName}] initializing database connection`);
+  await pool.query("SELECT 1");
+  console.log(`[${serviceName}] database initialization complete`);
+
+  server = await listen();
+  console.log(`[${serviceName}] listening on ${host}:${port}`);
+}
+
+async function shutdown(signal: string) {
+  console.log(`[${serviceName}] received ${signal}; shutting down`);
+  if (server) server.close(() => void pool.end());
+  else await pool.end();
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+
+void start().catch(async (error) => {
+  console.error(`[${serviceName}] startup failed: ${safeError(error)}`);
+  await pool.end().catch(() => undefined);
+  process.exitCode = 1;
+});

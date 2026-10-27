@@ -9,6 +9,42 @@ const children = new Map();
 let stopping = false;
 let stopPromise;
 
+function envPresent(name) {
+  return typeof process.env[name] === "string" && process.env[name].trim().length > 0;
+}
+
+function envStatus(name, validateUrl = false) {
+  if (!envPresent(name)) return "missing";
+  if (!validateUrl) return "set";
+  try {
+    new URL(process.env[name]);
+    return "set(valid-url)";
+  } catch {
+    return "set(invalid-url)";
+  }
+}
+
+function verifyEnvironment() {
+  const supabaseKeyName = envPresent("SUPABASE_SERVICE_ROLE_KEY")
+    ? "SUPABASE_SERVICE_ROLE_KEY"
+    : envPresent("SUPABASE_SECRET_KEY")
+      ? "SUPABASE_SECRET_KEY"
+      : "SUPABASE_SERVICE_ROLE_KEY";
+  const checks = {
+    DATABASE_URL: envStatus("DATABASE_URL", true),
+    JWT_SECRET: envStatus("JWT_SECRET"),
+    SUPABASE_URL: envStatus("SUPABASE_URL", true),
+    [supabaseKeyName]: envStatus(supabaseKeyName),
+    CORS_ORIGINS: envStatus("CORS_ORIGINS"),
+  };
+  console.log(`[backend] environment check: ${Object.entries(checks).map(([name, status]) => `${name}=${status}`).join(" ")}`);
+
+  const missing = Object.entries(checks)
+    .filter(([, status]) => status === "missing" || status.endsWith("invalid-url)"))
+    .map(([name]) => name);
+  if (missing.length) throw new Error(`required environment configuration is missing or invalid: ${missing.join(", ")}`);
+}
+
 function childEnvironment(overrides) {
   return { ...process.env, ...overrides };
 }
@@ -32,6 +68,7 @@ function forceStopProcess(child) {
 }
 
 function startService(name, packageName, overrides) {
+  console.log(`[backend] starting ${name} (${packageName})`);
   const child = spawn("pnpm", ["--filter", packageName, "start"], {
     cwd: rootDir,
     env: childEnvironment(overrides),
@@ -42,6 +79,7 @@ function startService(name, packageName, overrides) {
   const exited = new Promise((resolveExit) => {
     child.once("exit", (code, signal) => {
       resolveExit({ code, signal });
+      console.error(`[backend] ${name} exited: code=${code ?? "none"} signal=${signal ?? "none"}`);
       if (!stopping) {
         const result = signal ? `signal ${signal}` : `exit code ${code}`;
         void stop(1, `${name} stopped unexpectedly (${result})`);
@@ -50,6 +88,7 @@ function startService(name, packageName, overrides) {
   });
 
   child.once("error", (error) => {
+    console.error(`[backend] ${name} process error: ${error.message}`);
     if (!stopping) void stop(1, `${name} could not start: ${error.message}`);
   });
 
@@ -60,15 +99,35 @@ function startService(name, packageName, overrides) {
 
 async function waitForHealth(service, url, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
+  let lastFailure;
 
   while (Date.now() < deadline) {
     if (stopping) throw new Error(`${service.name} startup was interrupted`);
 
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
-      if (response.ok) return;
-    } catch {
-      // The service may still be starting or waiting for the database.
+      if (response.ok) {
+        console.log(`[backend] ${service.name} is healthy at ${url}`);
+        return;
+      }
+      const body = (await response.text().catch(() => "")).slice(0, 240);
+      const failure = `HTTP ${response.status}${body ? ` ${body}` : ""}`;
+      if (failure !== lastFailure) {
+        console.error(`[backend] ${service.name} health check at ${url}: ${failure}`);
+        lastFailure = failure;
+      }
+    } catch (error) {
+      const cause = error && typeof error === "object" && "cause" in error ? error.cause : undefined;
+      const causeCode = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
+      const errorName = error instanceof Error ? error.name : "Error";
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const failure = errorName === "TimeoutError" || errorName === "AbortError"
+        ? "request timeout"
+        : `connection error${causeCode ? ` ${String(causeCode)}` : ""}: ${errorMessage}`;
+      if (failure !== lastFailure) {
+        console.error(`[backend] ${service.name} health check at ${url}: ${failure}`);
+        lastFailure = failure;
+      }
     }
 
     await delay(250);
@@ -103,6 +162,8 @@ process.once("SIGTERM", () => void stop(0, "Received SIGTERM; stopping backend s
 process.once("SIGINT", () => void stop(0, "Received SIGINT; stopping backend services"));
 
 async function main() {
+  verifyEnvironment();
+
   const auth = startService("auth-service", "@annah/auth-service", {
     HOST: "127.0.0.1",
     PORT: "4002",

@@ -99,6 +99,33 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Request could not be processed" } });
 });
 
-const server = app.listen(Number(process.env.PORT || 4001), process.env.HOST || "0.0.0.0");
-process.on("SIGTERM", () => server.close());
-process.on("SIGINT", () => server.close());
+const port = Number(process.env.PORT || 4001);
+const host = process.env.HOST || "0.0.0.0";
+
+async function listen() {
+  return new Promise<ReturnType<typeof app.listen>>((resolve, reject) => {
+    const candidate = app.listen(port, host, () => resolve(candidate));
+    candidate.once("error", reject);
+  });
+}
+
+let server: ReturnType<typeof app.listen> | undefined;
+async function start() {
+  console.log(`[api-gateway] startup configuration: HOST=${host} PORT=${port} CORS_ORIGINS=${process.env.CORS_ORIGINS ? "set" : "missing"} AUTH_SERVICE_URL=${authServiceUrl} CATALOG_SERVICE_URL=${catalogServiceUrl}`);
+  server = await listen();
+  console.log(`[api-gateway] listening on ${host}:${port}`);
+}
+
+async function shutdown(signal: string) {
+  console.log(`[api-gateway] received ${signal}; shutting down`);
+  if (server) server.close();
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+
+void start().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[api-gateway] startup failed: ${message}`);
+  process.exitCode = 1;
+});

@@ -428,6 +428,51 @@ app.post("/analytics/events", async (req, res, next) => { try { const input = ev
 app.post("/analytics/events/batch", async (req, res, next) => { const client = await pool.connect(); try { const inputs = z.array(eventSchema).min(1).max(100).parse(req.body.events); await client.query("BEGIN"); for (const input of inputs) await client.query("INSERT INTO analytics_events(event_type,product_id,variant_id,anonymous_id,metadata) VALUES($1,$2,$3,$4,$5)", [input.eventType, input.productId || null, input.variantId || null, input.anonymousId || null, input.metadata]); await client.query("COMMIT"); ok({ accepted: inputs.length }, res); } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); } });
 
 app.use(fail);
-const server = app.listen(Number(process.env.PORT || 4003), process.env.HOST || '127.0.0.1');
-void pool.query("SELECT 1").catch(() => undefined);
-process.on("SIGTERM", () => server.close(() => pool.end()));
+
+const serviceName = "catalog-service";
+const port = Number(process.env.PORT || 4003);
+const host = process.env.HOST || "127.0.0.1";
+let server: ReturnType<typeof app.listen> | undefined;
+
+function safeError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+  return `${code ? `[${code}] ` : ""}${message.replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[database-url]")}`;
+}
+
+async function listen() {
+  return new Promise<ReturnType<typeof app.listen>>((resolve, reject) => {
+    const candidate = app.listen(port, host, () => resolve(candidate));
+    candidate.once("error", reject);
+  });
+}
+
+async function start() {
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+  console.log(`[${serviceName}] startup configuration: NODE_ENV=${process.env.NODE_ENV || "unset"} HOST=${host} PORT=${port} DATABASE_URL=${process.env.DATABASE_URL ? "set" : "missing"} JWT_SECRET=${process.env.JWT_SECRET ? "set" : "missing"} SUPABASE_URL=${process.env.SUPABASE_URL ? "set" : "missing"} SUPABASE_SERVICE_ROLE_KEY=${supabaseKey ? "set" : "missing"}`);
+  if (!process.env.DATABASE_URL || !process.env.JWT_SECRET || !process.env.SUPABASE_URL || !supabaseKey) {
+    throw new Error("DATABASE_URL, JWT_SECRET, SUPABASE_URL, and SUPABASE_SERVICE_ROLE_KEY are required");
+  }
+
+  console.log(`[${serviceName}] initializing database connection`);
+  await pool.query("SELECT 1");
+  console.log(`[${serviceName}] database initialization complete`);
+
+  server = await listen();
+  console.log(`[${serviceName}] listening on ${host}:${port}`);
+}
+
+async function shutdown(signal: string) {
+  console.log(`[${serviceName}] received ${signal}; shutting down`);
+  if (server) server.close(() => void pool.end());
+  else await pool.end();
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+
+void start().catch(async (error) => {
+  console.error(`[${serviceName}] startup failed: ${safeError(error)}`);
+  await pool.end().catch(() => undefined);
+  process.exitCode = 1;
+});
