@@ -140,6 +140,6 @@ app.post("/auth/password", requireAdmin, async (req, res, next) => {
 });
 
 app.use(fail);
-const server = app.listen(Number(process.env.PORT || 4002));
+const server = app.listen(Number(process.env.PORT || 4002), process.env.HOST || '127.0.0.1');
 void pool.query("SELECT 1").catch(() => undefined);
 process.on("SIGTERM", () => server.close(() => pool.end()));

@@ -132,6 +132,9 @@ importers:
       http-proxy-middleware:
         specifier: ^3.0.3
         version: 3.0.7
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
     devDependencies:
       '@types/cors':
         specifier: ^2.8.17
@@ -142,9 +145,6 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.4
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -169,6 +169,9 @@ importers:
       nodemailer:
         specifier: ^6.9.16
         version: 6.10.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -188,9 +191,6 @@ importers:
       '@types/nodemailer':
         specifier: ^6.4.17
         version: 6.4.24
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -209,6 +209,9 @@ importers:
       express:
         specifier: ^4.21.2
         version: 4.22.3
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -222,9 +225,6 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.4
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -237,6 +237,9 @@ importers:
       pg:
         specifier: ^8.13.1
         version: 8.23.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
     devDependencies:
       '@types/express':
         specifier: ^5.0.0
@@ -247,9 +250,6 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.23.1
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

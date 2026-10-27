@@ -1,18 +1,64 @@
 # Annah Boutique backend
 
-Three Railway deployables share one Neon PostgreSQL database: `api-gateway`, `auth-service`, and `catalog-service`. The gateway accepts browser traffic and proxies `/api/v1/auth/*` to Auth and all other versioned routes to Catalog. No customer accounts, payment endpoints, cart service, inventory quantity, or non-WhatsApp ordering channel are implemented.
+The API Gateway, Auth Service, and Catalog Service remain separate application processes, supervised together inside one Render Web Service. The gateway accepts browser traffic and proxies `/api/v1/auth/*` to Auth and all other versioned routes to Catalog. No customer accounts, payment endpoints, cart service, inventory quantity, or non-WhatsApp ordering channel are implemented.
 
 ## Run locally
 
-Copy `backend/.env.example` to the root `.env` (never commit it), set the database, `JWT_SECRET`, `ADMIN_PASSWORD`, Supabase, and business values, then install the workspace with `pnpm install`. Apply schema using `pnpm db:migrate`, seed the admin with `pnpm db:seed`, and run each package in a separate terminal with `PORT=4002 pnpm --filter @annah/auth-service start`, `PORT=4003 pnpm --filter @annah/catalog-service start`, and `PORT=4001 pnpm --filter @annah/api-gateway start`. The active admin flow is email/password with `ADMIN_OTP_ENABLED=false`; OTP code and tables remain available for a future reviewed reactivation.
+Copy `backend/.env.example` to the root `.env` (never commit it), set the database, `JWT_SECRET`, `ADMIN_PASSWORD`, Supabase, and business values, then install the workspace with `pnpm install`. Apply schema using `pnpm db:migrate`, seed the admin with `pnpm db:seed`, and use `pnpm dev:all` for local development. To exercise the production supervisor locally, run `node --env-file=.env scripts/start-backend.mjs`; it uses port `4001` when `PORT` is not set. The active admin flow is email/password with `ADMIN_OTP_ENABLED=false`; OTP code and tables remain available for a future reviewed reactivation.
 
 The initial seed creates the configured admin and never overwrites an existing password. If an existing OTP-only admin needs a deliberate password recovery, set `ADMIN_PASSWORD` and run `pnpm --filter @annah/auth-service admin:reset-password`; this revokes existing sessions. Passwords must be at least 12 characters and are stored as bcrypt hashes.
 
-`pnpm db:seed` is idempotent and uses `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PHONE`; authentication is email OTP, not a password. All service secrets stay server-side. Public product images belong in the public Supabase bucket named by `SUPABASE_STORAGE_BUCKET`. The browser uploads directly to the returned `uploadUrl` and sends the resulting `path` to the completion endpoint. `SUPABASE_SERVICE_ROLE_KEY` is never returned to the browser.
+`pnpm db:seed` is idempotent and uses `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PHONE`; the active authentication flow is email/password unless `ADMIN_OTP_ENABLED=true`. All service secrets stay server-side. Public product images belong in the public Supabase bucket named by `SUPABASE_STORAGE_BUCKET`. The browser uploads directly to the returned `uploadUrl` and sends the resulting `path` to the completion endpoint. `SUPABASE_SERVICE_ROLE_KEY` is never returned to the browser.
 
-## Railway
+## Render
 
-Create exactly three services from this repository, using `backend/Dockerfile`. Set Docker build argument `SERVICE` to `api-gateway`, `auth-service`, or `catalog-service`. Set `PORT` per Railway; the gateway also needs internal `AUTH_SERVICE_URL` and `CATALOG_SERVICE_URL`. Configure the common Neon URL, JWT secret, and applicable SMTP/Supabase/business variables in Railway service variables. Set `CORS_ORIGINS` to the storefront origin(s). Run `pnpm db:migrate` and `pnpm db:seed` as release/pre-deploy commands for the catalog and auth services respectively. Each service exposes `/health`. Railway terminates TLS; the gateway trusts one proxy hop. Sessions are HttpOnly, SameSite=Lax cookies, Secure in production, and stored server-side. Configure `JWT_SECRET` with a high-entropy value.
+Deploy one Render Web Service from the repository root using `backend/Dockerfile`. The Dockerfile installs the pnpm workspace and starts `node scripts/start-backend.mjs`; it starts `@annah/auth-service` on `127.0.0.1:4002`, `@annah/catalog-service` on `127.0.0.1:4003`, waits for both database-backed `/health` endpoints, and then starts `@annah/api-gateway` on Render's injected `PORT` and `0.0.0.0`. Configure Render's health-check path as `/healthz`.
+
+For a native Node Web Service instead of Docker, use these exact commands:
+
+```text
+Build Command: corepack enable && pnpm install --frozen-lockfile
+Start Command: pnpm start:backend
+```
+
+For Docker, set Dockerfile Path to `backend/Dockerfile`, leave the Docker build command unset, and use the Dockerfile command. Do not set the repository root directory to `backend`; the Dockerfile needs the root `package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`.
+
+Set these Render environment variables:
+
+```text
+NODE_ENV=production
+DATABASE_URL=<production PostgreSQL connection string>
+JWT_SECRET=<long high-entropy secret>
+ADMIN_EMAIL=<admin email>
+ADMIN_PASSWORD=<strong password of at least 12 characters>
+ADMIN_NAME=<admin name>
+ADMIN_PHONE=<admin phone>
+TRUSTED_DEVICE_HOURS=24
+ADMIN_OTP_ENABLED=false
+SUPABASE_URL=<Supabase project URL>
+SUPABASE_SERVICE_ROLE_KEY=<server-only Supabase service role key>
+SUPABASE_STORAGE_BUCKET=annahboutique
+WHATSAPP_NUMBER=<WhatsApp number>
+BUSINESS_NAME=Annah Boutique
+BUSINESS_EMAIL=<business email>
+BUSINESS_PHONE=<business phone>
+BUSINESS_ADDRESS=<business address>
+INSTAGRAM_URL=<Instagram URL>
+FACEBOOK_URL=<Facebook URL>
+CORS_ORIGINS=https://annah.nadhil.in
+```
+
+Render supplies `PORT`; do not replace it with `4001`. The supervisor sets the internal service ports and local proxy URLs. SMTP variables are only needed when `ADMIN_OTP_ENABLED=true`. The frontend must set `NEXT_PUBLIC_API_BASE_URL=https://<gateway-domain>/api/v1` in Vercel and then be redeployed because this value is compiled into the browser bundle.
+
+Run database operations as separate controlled deployment steps, never from `start:backend`:
+
+```text
+pnpm db:migrate
+pnpm db:seed
+pnpm --filter @annah/auth-service admin:reset-password  # explicit recovery only
+```
+
+The seed does not overwrite an existing password. The reset command revokes sessions and must only be run deliberately. The gateway's `/healthz` returns 503 until both internal services and the database are healthy; it returns 200 only after it can reach both services. Sessions are HttpOnly, SameSite=Lax cookies, Secure in production, and stored server-side. If the frontend and API are placed on different sites rather than `annah.nadhil.in` and an API subdomain under the same registrable domain, review the cookie SameSite setting before enabling admin login.
 
 ## API conventions
 
@@ -54,4 +100,4 @@ Validation failures return `VALIDATION_ERROR` with safe request-level messages; 
 
 ## Database / quality
 
-Schema is in `db/migrations/001_initial.sql`, using UUIDs, foreign keys, checks, inquiry snapshots, and query indexes. PostgreSQL is the only application database. Set up a public Supabase bucket with an 8 MiB maximum object size and allowed MIME types restricted to `image/jpeg`, `image/png`, and `image/webp`; the backend validates declared MIME type, size, and matching filename extension before signing. Allow browser uploads only through signed upload tokens. Expose only the gateway publicly; keep Auth and Catalog reachable through Railway private networking. Never set `SUPABASE_SERVICE_ROLE_KEY` in frontend variables.
+Schema is in `db/migrations/001_initial.sql`, using UUIDs, foreign keys, checks, inquiry snapshots, and query indexes. PostgreSQL is the only application database. Set up a public Supabase bucket with an 8 MiB maximum object size and allowed MIME types restricted to `image/jpeg`, `image/png`, and `image/webp`; the backend validates declared MIME type, size, and matching filename extension before signing. Allow browser uploads only through signed upload tokens. Expose only the gateway publicly; Auth and Catalog are loopback-only child processes inside the same Render container. Never set `SUPABASE_SERVICE_ROLE_KEY` in frontend variables.

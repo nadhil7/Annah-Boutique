@@ -42,4 +42,11 @@ export async function requireAdmin(req: Request, _res: Response, next: NextFunct
   } catch (e) { next(e instanceof ApiError ? e : new ApiError(401, 'UNAUTHORIZED', 'Authentication required')); }
 }
 export const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-export const health = (_req: Request, res: Response) => res.json({ status: 'ok', service: process.env.SERVICE_NAME });
+export const health = async (_req: Request, res: Response) => {
+  try {
+    await pool.query('SELECT 1');
+    return res.json({ status: 'ok', service: process.env.SERVICE_NAME });
+  } catch {
+    return res.status(503).json({ status: 'unavailable', service: process.env.SERVICE_NAME });
+  }
+};

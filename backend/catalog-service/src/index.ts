@@ -428,6 +428,6 @@ app.post("/analytics/events", async (req, res, next) => { try { const input = ev
 app.post("/analytics/events/batch", async (req, res, next) => { const client = await pool.connect(); try { const inputs = z.array(eventSchema).min(1).max(100).parse(req.body.events); await client.query("BEGIN"); for (const input of inputs) await client.query("INSERT INTO analytics_events(event_type,product_id,variant_id,anonymous_id,metadata) VALUES($1,$2,$3,$4,$5)", [input.eventType, input.productId || null, input.variantId || null, input.anonymousId || null, input.metadata]); await client.query("COMMIT"); ok({ accepted: inputs.length }, res); } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); } });
 
 app.use(fail);
-const server = app.listen(Number(process.env.PORT || 4003));
+const server = app.listen(Number(process.env.PORT || 4003), process.env.HOST || '127.0.0.1');
 void pool.query("SELECT 1").catch(() => undefined);
 process.on("SIGTERM", () => server.close(() => pool.end()));
