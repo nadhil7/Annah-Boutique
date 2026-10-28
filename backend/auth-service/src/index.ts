@@ -32,6 +32,14 @@ function trustedDays() {
   return Number.isFinite(hours) && hours > 0 ? hours / 24 : 1;
 }
 
+const sessionSameSite: "none" | "lax" = process.env.NODE_ENV === "production" ? "none" : "lax";
+const sessionCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: sessionSameSite,
+  path: "/",
+};
+
 async function signSession(adminId: string, sessionId: string, days: number) {
   return new SignJWT({ sid: sessionId })
     .setProtectedHeader({ alg: "HS256" })
@@ -47,7 +55,7 @@ async function createSession(adminId: string, res: Response, db: { query: (...ar
   const days = trustedDays();
   const token = await signSession(adminId, sid, days);
   await db.query("INSERT INTO admin_sessions(id,admin_id,expires_at,trusted_until) VALUES($1,$2,now()+($3::text||' days')::interval,now()+($3::text||' days')::interval)", [sid, adminId, days]);
-  res.cookie("annah_session", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: Math.round(days * 86400000) });
+  res.cookie("annah_session", token, { ...sessionCookieOptions, maxAge: Math.round(days * 86400000) });
   return { authenticated: true, trustedUntil: new Date(Date.now() + days * 86400000).toISOString() };
 }
 
@@ -104,7 +112,7 @@ app.post("/auth/logout", async (req, res, next) => {
         if (typeof payload.sid === "string") await pool.query("UPDATE admin_sessions SET revoked_at=now() WHERE id=$1", [payload.sid]);
       } catch { /* Always clear the browser cookie, even if the token is already invalid. */ }
     }
-    res.clearCookie("annah_session", { path: "/" });
+    res.clearCookie("annah_session", sessionCookieOptions);
     ok({ loggedOut: true }, res);
   } catch (error) { next(error); }
 });
