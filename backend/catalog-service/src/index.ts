@@ -57,11 +57,52 @@ const productSelect = `
     ) ORDER BY v.colour, v.size) FROM product_variants v WHERE v.product_id=p.id), '[]') AS variants,
     COALESCE((SELECT json_agg(json_build_object(
       'id', i.id, 'url', i.public_url, 'altText', i.alt_text,
+      'storagePath', i.storage_path,
       'sortOrder', i.sort_order, 'isPrimary', i.is_primary
-    ) ORDER BY i.sort_order, i.created_at) FROM product_images i WHERE i.product_id=p.id), '[]') AS images
+    ) ORDER BY i.is_primary DESC, i.sort_order, i.created_at) FROM product_images i WHERE i.product_id=p.id), '[]') AS images
   FROM products p
   LEFT JOIN categories c ON c.id=p.category_id
 `;
+
+const imageUrlTtlSeconds = 60 * 60;
+type ImageRecord = Record<string, unknown> & { storagePath?: string; url?: string };
+
+async function signedImageRecords(records: ImageRecord[]) {
+  const paths = [...new Set(records.map((record) => record.storagePath).filter((path): path is string => Boolean(path)))];
+  if (!paths.length) return records;
+
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, imageUrlTtlSeconds);
+  if (error || !data) throw new ApiError(502, "STORAGE_ERROR", "Unable to resolve product image URLs");
+
+  const urls = new Map<string, string>();
+  for (const item of data as Array<{ path?: string; signedUrl?: string | null; error?: string | null }>) {
+    if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
+  }
+
+  return records.map((record) => {
+    if (!record.storagePath) return record;
+    const url = urls.get(record.storagePath);
+    if (!url) throw new ApiError(502, "STORAGE_ERROR", "Unable to resolve product image URL");
+    const { storagePath: _storagePath, ...metadata } = record;
+    return { ...metadata, url };
+  });
+}
+
+async function withSignedImageUrls<T extends Record<string, unknown>>(row: T): Promise<T> {
+  const [resolved] = await withSignedImageUrlsForRows([row]);
+  return resolved;
+}
+
+async function withSignedImageUrlsForRows<T extends Record<string, unknown>>(rows: T[]): Promise<T[]> {
+  const imageLists = rows.map((row) => Array.isArray(row.images) ? row.images as ImageRecord[] : []);
+  const resolvedImages = await signedImageRecords(imageLists.flat());
+  let offset = 0;
+  return rows.map((row, index) => {
+    const images = resolvedImages.slice(offset, offset + imageLists[index].length);
+    offset += imageLists[index].length;
+    return { ...row, images } as T;
+  });
+}
 
 function csv(value: unknown) {
   return String(value || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
@@ -114,7 +155,7 @@ app.get("/products", async (req, res, next) => {
     const count = await pool.query(`SELECT count(*)::int AS total FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE ${where}`, values);
     const rowsValues = [...values, limit, (page - 1) * limit];
     const rows = await pool.query(`${productSelect} WHERE ${where} ORDER BY ${sortExpression(req.query.sort)} LIMIT $${rowsValues.length - 1} OFFSET $${rowsValues.length}`, rowsValues);
-    ok({ items: rows.rows, total: count.rows[0].total, page, limit }, res);
+    ok({ items: await withSignedImageUrlsForRows(rows.rows as Record<string, unknown>[]), total: count.rows[0].total, page, limit }, res);
   } catch (error) { next(error); }
 });
 
@@ -122,7 +163,7 @@ app.get("/products/:slug", async (req, res, next) => {
   try {
     const result = await pool.query(`${productSelect} WHERE p.slug=$1 AND p.status='ACTIVE' AND (p.category_id IS NULL OR c.status='ACTIVE')`, [req.params.slug]);
     if (!result.rowCount) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found");
-    ok(result.rows[0], res);
+    ok(await withSignedImageUrls(result.rows[0]), res);
   } catch (error) { next(error); }
 });
 
@@ -215,7 +256,7 @@ app.get("/admin/products", requireAdmin, async (req, res, next) => {
     const count = await pool.query(`SELECT count(*)::int AS total FROM products p LEFT JOIN categories c ON c.id=p.category_id ${clause}`, values);
     const rowsValues = [...values, limit, (page - 1) * limit];
     const rows = await pool.query(`${productSelect} ${clause} ORDER BY p.updated_at DESC,p.id LIMIT $${rowsValues.length - 1} OFFSET $${rowsValues.length}`, rowsValues);
-    ok({ items: rows.rows, total: count.rows[0].total, page, limit }, res);
+    ok({ items: await withSignedImageUrlsForRows(rows.rows as Record<string, unknown>[]), total: count.rows[0].total, page, limit }, res);
   } catch (error) { next(error); }
 });
 
@@ -223,7 +264,7 @@ app.get("/admin/products/:id", requireAdmin, async (req, res, next) => {
   try {
     const result = await pool.query(`${productSelect} WHERE p.id=$1`, [req.params.id]);
     if (!result.rowCount) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found");
-    ok(result.rows[0], res);
+    ok(await withSignedImageUrls(result.rows[0]), res);
   } catch (error) { next(error); }
 });
 
@@ -262,7 +303,7 @@ app.post("/admin/products", requireAdmin, async (req, res, next) => {
     await saveVariants(client, result.rows[0].id, input.slug || slugify(input.name), input.variants);
     await client.query("COMMIT");
     const saved = await pool.query(`${productSelect} WHERE p.id=$1`, [result.rows[0].id]);
-    res.status(201); ok(saved.rows[0], res);
+    res.status(201); ok(await withSignedImageUrls(saved.rows[0]), res);
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
 });
 
@@ -280,7 +321,7 @@ app.patch("/admin/products/:id", requireAdmin, async (req, res, next) => {
     if (input.variants) await saveVariants(client, String(req.params.id), nextSlug, input.variants, true);
     await client.query("COMMIT");
     const saved = await pool.query(`${productSelect} WHERE p.id=$1`, [req.params.id]);
-    ok(saved.rows[0], res);
+    ok(await withSignedImageUrls(saved.rows[0]), res);
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
 });
 
@@ -318,21 +359,34 @@ app.post("/admin/media/signed-upload-url", requireAdmin, async (req, res, next) 
 });
 
 app.post("/admin/media/complete", requireAdmin, async (req, res, next) => {
+  const client = await pool.connect();
+  let transactionStarted = false;
   try {
     const input = z.object({ entityType: z.enum(["product", "category"]), entityId: z.string().uuid(), path: z.string().min(1), altText: z.string().max(300).default(""), sortOrder: z.number().int().default(0), isPrimary: z.boolean().default(false) }).parse(req.body);
     const folder = input.entityType === "category" ? "categories" : "products";
     if (!input.path.startsWith(`${folder}/${input.entityId}/`)) throw new ApiError(400, "INVALID_STORAGE_PATH", "Storage path does not match upload target");
-    const files = await supabase.storage.from(bucket).list(`${folder}/${input.entityId}`, { search: input.path.split("/").pop() });
-    if (!files.data?.some((file) => `${folder}/${input.entityId}/${file.name}` === input.path)) throw new ApiError(400, "UPLOAD_NOT_FOUND", "Uploaded object not found");
+    const { data: files, error: listError } = await supabase.storage.from(bucket).list(`${folder}/${input.entityId}`, { search: input.path.split("/").pop() });
+    if (listError) throw new ApiError(502, "STORAGE_ERROR", "Unable to verify uploaded image");
+    if (!files?.some((file) => `${folder}/${input.entityId}/${file.name}` === input.path)) throw new ApiError(400, "UPLOAD_NOT_FOUND", "Uploaded object not found");
     const { data } = supabase.storage.from(bucket).getPublicUrl(input.path);
     if (input.entityType === "category") {
       await pool.query("UPDATE categories SET image=$2,updated_at=now() WHERE id=$1", [input.entityId, data.publicUrl]);
       ok({ path: input.path, publicUrl: data.publicUrl }, res);
     } else {
-      const result = await pool.query("INSERT INTO product_images(product_id,storage_path,public_url,alt_text,sort_order,is_primary) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,storage_path AS \"storagePath\",public_url AS url,alt_text AS \"altText\",sort_order AS \"sortOrder\",is_primary AS \"isPrimary\"", [input.entityId, input.path, data.publicUrl, input.altText, input.sortOrder, input.isPrimary]);
-      ok(result.rows[0], res);
+      const { data: signed, error: signError } = await supabase.storage.from(bucket).createSignedUrl(input.path, imageUrlTtlSeconds);
+      if (signError || !signed?.signedUrl) throw new ApiError(502, "STORAGE_ERROR", "Unable to resolve uploaded image");
+      await client.query("BEGIN");
+      transactionStarted = true;
+      if (input.isPrimary) await client.query("UPDATE product_images SET is_primary=false,sort_order=sort_order+1,updated_at=now() WHERE product_id=$1", [input.entityId]);
+      const result = await client.query("INSERT INTO product_images(product_id,storage_path,public_url,alt_text,sort_order,is_primary) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,storage_path AS \"storagePath\",public_url AS url,alt_text AS \"altText\",sort_order AS \"sortOrder\",is_primary AS \"isPrimary\"", [input.entityId, input.path, data.publicUrl, input.altText, input.sortOrder, input.isPrimary]);
+      await client.query("COMMIT");
+      const { storagePath: _storagePath, ...image } = result.rows[0];
+      ok({ ...image, url: signed.signedUrl }, res);
     }
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (transactionStarted) await client.query("ROLLBACK").catch(() => undefined);
+    next(error);
+  } finally { client.release(); }
 });
 
 app.patch("/admin/media/:id", requireAdmin, async (req, res, next) => {
@@ -346,9 +400,11 @@ app.patch("/admin/media/:id", requireAdmin, async (req, res, next) => {
 
 app.delete("/admin/media/:id", requireAdmin, async (req, res, next) => {
   try {
-    const result = await pool.query("DELETE FROM product_images WHERE id=$1 RETURNING storage_path", [req.params.id]);
+    const result = await pool.query("SELECT id,storage_path FROM product_images WHERE id=$1", [req.params.id]);
     if (!result.rowCount) throw new ApiError(404, "IMAGE_NOT_FOUND", "Image not found");
-    await supabase.storage.from(bucket).remove([result.rows[0].storage_path]);
+    const { error: storageError } = await supabase.storage.from(bucket).remove([result.rows[0].storage_path]);
+    if (storageError) throw new ApiError(502, "STORAGE_ERROR", "Unable to remove image from storage");
+    await pool.query("DELETE FROM product_images WHERE id=$1", [req.params.id]);
     ok({ deleted: true }, res);
   } catch (error) { next(error); }
 });
