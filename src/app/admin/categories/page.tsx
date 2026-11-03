@@ -70,7 +70,7 @@ export default function AdminCategoriesPage() {
   async function deactivate(item: Category) {
     if (!item.id) return;
     setConfirmation({ title: "Deactivate category?", description: `“${item.name}” will be removed from storefront navigation.`, confirmLabel: "Deactivate category", destructive: true, action: async () => {
-      try {
+      try { setBusy(true);
         await adminApi.deleteCategory(item.id!);
         await load();
         toast({ title: "Category deactivated", variant: "success" });
@@ -78,11 +78,12 @@ export default function AdminCategoriesPage() {
       } catch (err) {
         if (err instanceof CatalogApiError && err.code === "CATEGORY_HAS_PRODUCTS") {
           setConfirmation({ title: "Deactivate category with products?", description: `${err.message} Products will remain safely stored, but the category and its products will be hidden from storefront navigation.`, confirmLabel: "Deactivate category", destructive: true, action: async () => {
-            try { await adminApi.deleteCategory(item.id!, true); await load(); toast({ title: "Category deactivated", variant: "success" }); setConfirmation(null); }
+            try { setBusy(true); await adminApi.deleteCategory(item.id!, true); await load(); toast({ title: "Category deactivated", variant: "success" }); setConfirmation(null); }
             catch (confirmError) { setError(notifyError("Failed to deactivate category", confirmError, "Unable to deactivate category.")); }
+            finally { setBusy(false); }
           } });
         } else setError(notifyError("Failed to deactivate category", err, "Unable to deactivate category."));
-      }
+      } finally { setBusy(false); }
     } });
   }
 

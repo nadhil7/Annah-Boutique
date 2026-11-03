@@ -54,22 +54,28 @@ interface ProductVariantSelectProps {
     price: number;
     available: boolean;
   }) => void;
+  onColourChange?: (colour: string | null) => void;
 }
 
 export function ProductVariantSelect({
   product,
   onVariantChange,
+  onColourChange,
 }: ProductVariantSelectProps) {
   const [selectedColor, setSelectedColor] = React.useState<string | null>(
     product.colors[0] ?? null
   );
-  const [selectedSize, setSelectedSize] = React.useState<string | null>(
-    product.sizes[0] ?? null
-  );
+  const [selectedSize, setSelectedSize] = React.useState<string | null>(product.sizes[0] ?? null);
   const [quantity, setQuantity] = React.useState(1);
   const selectedVariant = product.variants?.find((variant) => variant.colour === selectedColor && variant.size === selectedSize);
   const selectedPrice = selectedVariant ? Number(selectedVariant.price) : product.price;
   const available = selectedVariant?.availability === "AVAILABLE";
+
+  React.useEffect(() => {
+    const firstAvailableSize = product.variants?.find((variant) => variant.colour === selectedColor && variant.availability === "AVAILABLE")?.size;
+    setSelectedSize(firstAvailableSize || product.sizes[0] || null);
+    onColourChange?.(selectedColor);
+  }, [selectedColor, onColourChange, product.sizes, product.variants]);
 
   React.useEffect(() => {
     onVariantChange?.({

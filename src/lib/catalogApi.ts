@@ -15,6 +15,8 @@ export type CatalogImage = {
   altText: string;
   sortOrder: number;
   isPrimary: boolean;
+  variantId?: string | null;
+  variantColour?: string | null;
 };
 
 export type CatalogProduct = {
@@ -99,6 +101,10 @@ function mapProduct(raw: CatalogProduct): Product {
     createdAt: raw.createdAt,
     categoryId: raw.categoryId,
     variants,
+    variantImages: (raw.images || []).reduce<Record<string, string[]>>((groups, image) => {
+      if (image.variantColour && image.url) groups[image.variantColour] = [...(groups[image.variantColour] || []), image.url];
+      return groups;
+    }, {}),
     status: raw.status,
   };
 }

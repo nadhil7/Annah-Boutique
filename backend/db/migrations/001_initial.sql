@@ -14,6 +14,8 @@ CREATE INDEX IF NOT EXISTS products_category_idx ON products(category_id);
 CREATE TABLE IF NOT EXISTS product_variants(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), product_id uuid NOT NULL REFERENCES products ON DELETE CASCADE, sku text UNIQUE NOT NULL, colour text NOT NULL, size text NOT NULL, price numeric(12,2) NOT NULL CHECK(price >= 0), availability text NOT NULL DEFAULT 'AVAILABLE' CHECK(availability IN ('AVAILABLE','UNAVAILABLE')), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(product_id, colour, size));
 CREATE INDEX IF NOT EXISTS variants_filter_idx ON product_variants(colour,size,price,availability,product_id);
 CREATE TABLE IF NOT EXISTS product_images(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), product_id uuid NOT NULL REFERENCES products ON DELETE CASCADE, storage_path text NOT NULL UNIQUE, public_url text NOT NULL, alt_text text NOT NULL DEFAULT '', sort_order int NOT NULL DEFAULT 0, is_primary boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE product_images ADD COLUMN IF NOT EXISTS variant_id uuid REFERENCES product_variants ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS product_images_variant_idx ON product_images(variant_id);
 -- Normalize any legacy duplicate primaries/order values before enforcing one primary per product.
 WITH ordered AS (
   SELECT id, row_number() OVER (PARTITION BY product_id ORDER BY is_primary DESC, sort_order, created_at, id) - 1 AS next_sort_order,

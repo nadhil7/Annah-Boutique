@@ -112,8 +112,10 @@ const productSelect = `
     COALESCE((SELECT json_agg(json_build_object(
       'id', i.id, 'url', i.public_url, 'altText', i.alt_text,
       'storagePath', i.storage_path,
+      'variantId', i.variant_id,
+      'variantColour', iv.colour,
       'sortOrder', i.sort_order, 'isPrimary', i.is_primary
-    ) ORDER BY i.is_primary DESC, i.sort_order, i.created_at) FROM product_images i WHERE i.product_id=p.id), '[]') AS images
+    ) ORDER BY i.is_primary DESC, i.sort_order, i.created_at) FROM product_images i LEFT JOIN product_variants iv ON iv.id=i.variant_id WHERE i.product_id=p.id), '[]') AS images
   FROM products p
   LEFT JOIN categories c ON c.id=p.category_id
 `;
@@ -475,7 +477,7 @@ app.post("/admin/media/complete", requireAdmin, async (req, res, next) => {
   const client = await pool.connect();
   let transactionStarted = false;
   try {
-    const input = z.object({ entityType: z.enum(["product", "category"]), entityId: z.string().uuid(), path: z.string().min(1), altText: z.string().max(300).default(""), sortOrder: z.number().int().default(0), isPrimary: z.boolean().default(false) }).parse(req.body);
+    const input = z.object({ entityType: z.enum(["product", "category"]), entityId: z.string().uuid(), path: z.string().min(1), variantId: z.string().uuid().optional(), altText: z.string().max(300).default(""), sortOrder: z.number().int().default(0), isPrimary: z.boolean().default(false) }).parse(req.body);
     const folder = input.entityType === "category" ? "categories" : "products";
     if (!input.path.startsWith(`${folder}/${input.entityId}/`)) throw new ApiError(400, "INVALID_STORAGE_PATH", "Storage path does not match upload target");
     const operation = input.entityType === "category" ? "category_image_upload" : "product_image_upload";
@@ -495,6 +497,10 @@ app.post("/admin/media/complete", requireAdmin, async (req, res, next) => {
       imageLog(operation, req, res, { entityType: input.entityType, entityId: input.entityId, objectPath: input.path, storageVerification: "success", databaseUpdate: "success", responseStatus: 200 });
       ok({ path: input.path, publicUrl: data.publicUrl, category: await resolveCategoryImage(result.rows[0] as Record<string, unknown>, req, res) }, res);
     } else {
+      if (input.variantId) {
+        const variant = await pool.query("SELECT id FROM product_variants WHERE id=$1 AND product_id=$2", [input.variantId, input.entityId]);
+        if (!variant.rowCount) throw new ApiError(400, "INVALID_VARIANT", "Image variant does not belong to this product");
+      }
       const { data: signed, error: signError } = await supabase.storage.from(bucket).createSignedUrl(input.path, imageUrlTtlSeconds);
       if (signError || !signed?.signedUrl) {
         imageLog(operation, req, res, { entityType: input.entityType, entityId: input.entityId, objectPath: input.path, storageVerification: "success", imageRetrieval: "failure", ...safeErrorDetails(signError || new Error("Missing signed URL")) }, "error");
@@ -505,7 +511,7 @@ app.post("/admin/media/complete", requireAdmin, async (req, res, next) => {
       const existing = await client.query("SELECT count(*)::int AS count, bool_or(is_primary) AS \"hasPrimary\" FROM product_images WHERE product_id=$1", [input.entityId]);
       const shouldBePrimary = input.isPrimary || Number(existing.rows[0].count) === 0;
       if (shouldBePrimary) await client.query("UPDATE product_images SET is_primary=false,updated_at=now() WHERE product_id=$1", [input.entityId]);
-      const result = await client.query("INSERT INTO product_images(product_id,storage_path,public_url,alt_text,sort_order,is_primary) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,storage_path AS \"storagePath\",public_url AS url,alt_text AS \"altText\",sort_order AS \"sortOrder\",is_primary AS \"isPrimary\"", [input.entityId, input.path, data.publicUrl, input.altText, input.sortOrder, shouldBePrimary]);
+      const result = await client.query("INSERT INTO product_images(product_id,storage_path,public_url,variant_id,alt_text,sort_order,is_primary) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,storage_path AS \"storagePath\",public_url AS url,variant_id AS \"variantId\",alt_text AS \"altText\",sort_order AS \"sortOrder\",is_primary AS \"isPrimary\"", [input.entityId, input.path, data.publicUrl, input.variantId || null, input.altText, input.sortOrder, shouldBePrimary]);
       await client.query("COMMIT");
       transactionStarted = false;
       imageLog(operation, req, res, { entityType: input.entityType, entityId: input.entityId, objectPath: input.path, storageVerification: "success", databaseUpdate: "success", fileCount: 1, isPrimary: shouldBePrimary, responseStatus: 200 });
