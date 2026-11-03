@@ -28,7 +28,10 @@ export const fail = (err: unknown, _req: Request, res: Response, next: NextFunct
   }
   res.status(e.status).json({ success: false, error: { code: e.code, message: e.message } });
 };
-export const requestId = (_req: Request, res: Response, next: NextFunction) => { res.setHeader('x-request-id', randomUUID()); next(); };
+export const requestId = (req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('x-request-id', req.header('x-request-id') || randomUUID());
+  next();
+};
 export async function requireAdmin(req: Request, _res: Response, next: NextFunction) {
   try {
     const token = req.cookies?.annah_session;

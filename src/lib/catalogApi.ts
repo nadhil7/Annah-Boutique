@@ -33,7 +33,18 @@ export type CatalogProduct = {
   updatedAt: string;
 };
 
+export function orderCatalogImages(images: CatalogImage[]) {
+  return [...images].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.sortOrder - b.sortOrder);
+}
+
 type ApiEnvelope<T> = { success: boolean; data?: T; error?: { message?: string } | string };
+
+export class CatalogApiError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "CatalogApiError";
+  }
+}
 
 function baseUrl() {
   return (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.BACKEND_API_URL || "http://localhost:4001/api/v1").replace(/\/$/, "");
@@ -52,7 +63,9 @@ export async function catalogFetch<T>(path: string, init?: RequestInit): Promise
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!response.ok || !payload?.success) {
     const error = typeof payload?.error === "string" ? payload.error : payload?.error?.message;
-    throw new Error(error || `Request failed (${response.status})`);
+    const rawError = payload?.error;
+    const code = rawError && typeof rawError === "object" && "code" in rawError ? String(rawError.code || "") : undefined;
+    throw new CatalogApiError(error || `Request failed (${response.status})`, code);
   }
   return payload.data as T;
 }
@@ -72,7 +85,7 @@ function mapProduct(raw: CatalogProduct): Product {
     discount: 0,
     category: raw.category || "",
     collection: "",
-    images: (raw.images || []).sort((a, b) => a.sortOrder - b.sortOrder).map((image) => image.url),
+    images: orderCatalogImages(raw.images || []).map((image) => image.url),
     colors: [...new Set(variants.map((variant) => variant.colour))],
     sizes: [...new Set(variants.map((variant) => variant.size))],
     stock: available.length,

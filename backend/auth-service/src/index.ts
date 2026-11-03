@@ -50,7 +50,7 @@ async function signSession(adminId: string, sessionId: string, days: number) {
     .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 }
 
-async function createSession(adminId: string, res: Response, db: { query: (...args: any[]) => Promise<any> } = pool) {
+async function createSession(adminId: string, res: Response, db: { query: (sql: string, values?: unknown[]) => Promise<unknown> } = pool) {
   const sid = randomUUID();
   const days = trustedDays();
   const token = await signSession(adminId, sid, days);
