@@ -30,7 +30,7 @@ export default function AdminCategoriesPage() {
     const fileName = file.name.replace(/[^A-Za-z0-9._-]/g, "-");
     const signed = await adminApi.signedUpload({ fileName, contentType: file.type, fileSize: file.size, entityType: "category", entityId: categoryId });
     if (!signed.uploadUrl || !signed.path || !signed.token) throw new Error("Storage did not return a valid signed upload target");
-    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { Authorization: `Bearer ${signed.token}`, "Content-Type": file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: file });
+    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { "Content-Type": file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: file });
     const responseText = await upload.text().catch(() => "");
     let storageErrorCode: string | undefined;
     let storageErrorMessage: string | undefined;

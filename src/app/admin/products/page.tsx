@@ -51,7 +51,7 @@ export default function AdminProductsPage() {
     const fileName = pending.file.name.replace(/[^A-Za-z0-9._-]/g, "-");
     const signed = await adminApi.signedUpload({ fileName, contentType: pending.file.type, fileSize: pending.file.size, entityType: "product", entityId: productId });
     if (!signed.uploadUrl || !signed.path || !signed.token) throw new Error("Storage did not return a valid signed upload target");
-    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { Authorization: `Bearer ${signed.token}`, "Content-Type": pending.file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: pending.file });
+    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { "Content-Type": pending.file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: pending.file });
     const responseText = await upload.text().catch(() => "");
     let storageErrorCode: string | undefined;
     let storageErrorMessage: string | undefined;
