@@ -30,8 +30,15 @@ export default function AdminCategoriesPage() {
     const fileName = file.name.replace(/[^A-Za-z0-9._-]/g, "-");
     const signed = await adminApi.signedUpload({ fileName, contentType: file.type, fileSize: file.size, entityType: "category", entityId: categoryId });
     if (!signed.uploadUrl || !signed.path || !signed.token) throw new Error("Storage did not return a valid signed upload target");
-    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { "Content-Type": file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: file });
-    if (!upload.ok) { const detail = await upload.text().catch(() => ""); throw new Error(`Image upload failed${detail ? `: ${detail.slice(0, 180)}` : ""} (${upload.status})`); }
+    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { Authorization: `Bearer ${signed.token}`, "Content-Type": file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: file });
+    const responseText = await upload.text().catch(() => "");
+    let storageErrorCode: string | undefined;
+    let storageErrorMessage: string | undefined;
+    if (responseText) { try { const payload = JSON.parse(responseText) as { code?: string; error?: string; message?: string; statusCode?: string | number }; storageErrorCode = payload.code || (payload.statusCode ? String(payload.statusCode) : undefined); storageErrorMessage = payload.message || payload.error; } catch { storageErrorMessage = responseText.slice(0, 300); } }
+    const uploadLog = { requestId: signed.requestId || "unknown", objectPath: signed.path, storageHttpStatus: upload.status, storageUploadSucceeded: upload.ok, ...(storageErrorCode ? { storageErrorCode } : {}), ...(storageErrorMessage ? { storageErrorMessage } : {}) };
+    void adminApi.reportUploadOutcome({ entityType: "category", entityId: categoryId, ...uploadLog }).catch(() => undefined);
+    if (upload.ok) console.info("[category-image-upload]", uploadLog);
+    else { console.error("[category-image-upload]", uploadLog); throw new Error(`${storageErrorMessage || "Image upload failed"} (${upload.status})`); }
     const completed = await adminApi.completeUpload({ entityType: "category", entityId: categoryId, path: signed.path });
     if (!("category" in completed) || !completed.category) throw new Error("Category image update returned no category");
     return completed.category;
@@ -65,13 +72,13 @@ export default function AdminCategoriesPage() {
     setConfirmation({ title: "Deactivate category?", description: `“${item.name}” will be removed from storefront navigation.`, confirmLabel: "Deactivate category", destructive: true, action: async () => {
       try {
         await adminApi.deleteCategory(item.id!);
-        setItems((current) => current.filter((candidate) => candidate.id !== item.id));
+        await load();
         toast({ title: "Category deactivated", variant: "success" });
         setConfirmation(null);
       } catch (err) {
         if (err instanceof CatalogApiError && err.code === "CATEGORY_HAS_PRODUCTS") {
           setConfirmation({ title: "Deactivate category with products?", description: `${err.message} Products will remain safely stored, but the category and its products will be hidden from storefront navigation.`, confirmLabel: "Deactivate category", destructive: true, action: async () => {
-            try { await adminApi.deleteCategory(item.id!, true); setItems((current) => current.filter((candidate) => candidate.id !== item.id)); toast({ title: "Category deactivated", variant: "success" }); setConfirmation(null); }
+            try { await adminApi.deleteCategory(item.id!, true); await load(); toast({ title: "Category deactivated", variant: "success" }); setConfirmation(null); }
             catch (confirmError) { setError(notifyError("Failed to deactivate category", confirmError, "Unable to deactivate category.")); }
           } });
         } else setError(notifyError("Failed to deactivate category", err, "Unable to deactivate category."));

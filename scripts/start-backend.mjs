@@ -60,6 +60,26 @@ function childEnvironment(overrides) {
   return { ...process.env, ...overrides };
 }
 
+function runDatabaseMigrations() {
+  return new Promise((resolveMigration, rejectMigration) => {
+    console.log("[backend] applying database migrations");
+    const migration = spawn("pnpm", ["db:migrate"], {
+      cwd: rootDir,
+      env: childEnvironment({ NODE_ENV: process.env.NODE_ENV || "production" }),
+      stdio: "inherit",
+    });
+    migration.once("error", rejectMigration);
+    migration.once("exit", (code, signal) => {
+      if (code === 0) {
+        console.log("[backend] database migrations complete");
+        resolveMigration();
+        return;
+      }
+      rejectMigration(new Error(`database migrations failed (code=${code ?? "none"} signal=${signal ?? "none"})`));
+    });
+  });
+}
+
 function stopProcess(child) {
   if (!child.pid || child.exitCode !== null) return;
   try {
@@ -186,6 +206,7 @@ process.once("SIGINT", () => void stop(0, "Received SIGINT; stopping backend ser
 
 async function main() {
   verifyEnvironment();
+  await runDatabaseMigrations();
   const timeoutMs = readinessTimeoutMs();
   console.log(`[backend] readiness timeout: ${timeoutMs}ms`);
 

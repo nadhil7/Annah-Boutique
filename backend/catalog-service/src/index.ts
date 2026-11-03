@@ -444,9 +444,29 @@ app.post("/admin/media/signed-upload-url", requireAdmin, async (req, res, next) 
       throw new ApiError(502, "STORAGE_ERROR", "Unable to create upload URL");
     }
     imageLog(input.entityType === "category" ? "category_image_upload" : "product_image_upload", req, res, { entityType: input.entityType, entityId: input.entityId, objectPath: path, fileName: input.fileName, fileSize: input.fileSize, mimeType: input.contentType, storageUpload: "signed_url_created", responseStatus: 200 });
-    ok({ uploadUrl: data.signedUrl, token: data.token, path, expiresIn: 7200 }, res);
+    ok({ uploadUrl: data.signedUrl, token: data.token, path, expiresIn: 7200, requestId: String(res.getHeader("x-request-id") || "unknown") }, res);
   } catch (error) {
     if (!(error instanceof ApiError && error.code === "STORAGE_ERROR")) imageLog("image_api_response", req, res, { responseStatus: 400, ...safeErrorDetails(error) }, "error");
+    next(error);
+  }
+});
+
+app.post("/admin/media/upload-outcome", requireAdmin, async (req, res, next) => {
+  try {
+    const input = z.object({
+      entityType: z.enum(["product", "category"]),
+      entityId: z.string().uuid(),
+      requestId: z.string().max(100),
+      objectPath: z.string().max(500),
+      storageHttpStatus: z.number().int().min(100).max(599),
+      storageUploadSucceeded: z.boolean(),
+      storageErrorCode: z.string().max(100).optional(),
+      storageErrorMessage: z.string().max(500).optional(),
+    }).parse(req.body);
+    const operation = input.entityType === "category" ? "category_image_upload" : "product_image_upload";
+    imageLog(operation, req, res, { ...input, uploadOutcome: input.storageUploadSucceeded ? "success" : "failure" });
+    ok({ recorded: true }, res);
+  } catch (error) {
     next(error);
   }
 });

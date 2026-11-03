@@ -22,7 +22,7 @@ function messageOf(error: unknown, fallback: string) { return error instanceof E
 function notifyError(title: string, error: unknown, fallback: string) { const description = messageOf(error, fallback); toast({ title, description, variant: "destructive" }); return description; }
 
 export default function AdminProductsPage() {
-  const [items, setItems] = useState<AdminProduct[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [editing, setEditing] = useState<AdminProduct | null>(null); const [form, setForm] = useState(empty); const [variants, setVariants] = useState<FormVariant[]>([newVariant()]); const [pendingImages, setPendingImages] = useState<PendingImage[]>([]); const [search, setSearch] = useState(""); const [status, setStatus] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [formOpen, setFormOpen] = useState(false); const [confirmation, setConfirmation] = useState<{ title: string; description: string; confirmLabel: string; destructive?: boolean; action: () => void | Promise<void> } | null>(null);
+  const [items, setItems] = useState<AdminProduct[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [editing, setEditing] = useState<AdminProduct | null>(null); const [form, setForm] = useState(empty); const [variants, setVariants] = useState<FormVariant[]>([newVariant()]); const [pendingImages, setPendingImages] = useState<PendingImage[]>([]); const [search, setSearch] = useState(""); const [status, setStatus] = useState("ACTIVE"); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [formOpen, setFormOpen] = useState(false); const [confirmation, setConfirmation] = useState<{ title: string; description: string; confirmLabel: string; destructive?: boolean; action: () => void | Promise<void> } | null>(null);
 
   const load = useCallback(() => { const params = new URLSearchParams({ ...(search ? { search } : {}), ...(status ? { status } : {}), limit: "100" }); return adminApi.products(params.toString()).then((result) => setItems(result.items)).catch((err) => setError(messageOf(err, "Unable to load products"))); }, [search, status]);
   useEffect(() => { void load(); }, [load]);
@@ -51,8 +51,15 @@ export default function AdminProductsPage() {
     const fileName = pending.file.name.replace(/[^A-Za-z0-9._-]/g, "-");
     const signed = await adminApi.signedUpload({ fileName, contentType: pending.file.type, fileSize: pending.file.size, entityType: "product", entityId: productId });
     if (!signed.uploadUrl || !signed.path || !signed.token) throw new Error("Storage did not return a valid signed upload target");
-    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { "Content-Type": pending.file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: pending.file });
-    if (!upload.ok) { const responseText = await upload.text().catch(() => ""); let detail = "Image upload failed"; try { const payload = JSON.parse(responseText) as { message?: string; error?: string }; detail = payload.message || payload.error || detail; } catch { /* Supabase may return a non-JSON response. */ } throw new Error(`${detail} (${upload.status})`); }
+    const upload = await fetch(signed.uploadUrl, { method: "POST", headers: { Authorization: `Bearer ${signed.token}`, "Content-Type": pending.file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: pending.file });
+    const responseText = await upload.text().catch(() => "");
+    let storageErrorCode: string | undefined;
+    let storageErrorMessage: string | undefined;
+    if (responseText) { try { const payload = JSON.parse(responseText) as { code?: string; error?: string; message?: string; statusCode?: string | number }; storageErrorCode = payload.code || (payload.statusCode ? String(payload.statusCode) : undefined); storageErrorMessage = payload.message || payload.error; } catch { storageErrorMessage = responseText.slice(0, 300); } }
+    const uploadLog = { requestId: signed.requestId || "unknown", objectPath: signed.path, storageHttpStatus: upload.status, storageUploadSucceeded: upload.ok, ...(storageErrorCode ? { storageErrorCode } : {}), ...(storageErrorMessage ? { storageErrorMessage } : {}) };
+    void adminApi.reportUploadOutcome({ entityType: "product", entityId: productId, ...uploadLog }).catch(() => undefined);
+    if (upload.ok) console.info("[product-image-upload]", uploadLog);
+    else { console.error("[product-image-upload]", uploadLog); throw new Error(`${storageErrorMessage || "Image upload failed"} (${upload.status})`); }
     const completed = await adminApi.completeUpload({ entityType: "product", entityId: productId, path: signed.path, altText: form.name, sortOrder, isPrimary });
     if (!("url" in completed) || !completed.url) throw new Error("Storage completed without an image URL");
     return completed;
@@ -97,7 +104,7 @@ export default function AdminProductsPage() {
     finally { setBusy(false); }
   }
   function submit(event: FormEvent) { event.preventDefault(); if (editing) { setConfirmation({ title: "Save product changes?", description: `The changes to “${form.name || editing.name}” will be visible in the storefront.`, confirmLabel: "Save changes", action: () => saveProduct(event) }); return; } void saveProduct(event); }
-  function deactivate(item: AdminProduct) { if (!item.id) return; setConfirmation({ title: "Deactivate product?", description: `“${item.name}” will disappear from the storefront.`, confirmLabel: "Deactivate product", destructive: true, action: async () => { try { await adminApi.deleteProduct(item.id!); setItems((current) => current.filter((candidate) => candidate.id !== item.id)); toast({ title: "Product deactivated", variant: "success" }); setConfirmation(null); } catch (err) { setError(notifyError("Failed to deactivate product", err, "Unable to deactivate product.")); } } }); }
+  function deactivate(item: AdminProduct) { if (!item.id) return; setConfirmation({ title: "Deactivate product?", description: `“${item.name}” will be marked inactive and removed from the active catalog. It will no longer appear in the storefront.`, confirmLabel: "Deactivate product", destructive: true, action: async () => { try { await adminApi.deleteProduct(item.id!); await load(); toast({ title: "Product deactivated", variant: "success" }); setConfirmation(null); } catch (err) { setError(notifyError("Failed to deactivate product", err, "Unable to deactivate product.")); } } }); }
 
   const orderedExisting = [...(editing?.images || [])].sort((a, b) => a.sortOrder - b.sortOrder);
   return <>

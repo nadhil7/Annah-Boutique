@@ -40,10 +40,6 @@ export default function AnnouncementBar() {
             <MessageCircle className="w-3.5 h-3.5" />
             <span>WhatsApp us: {siteConfig.phone}</span>
           </Link>
-          <div className="flex items-center gap-2 shrink-0">
-            <Truck className="w-3.5 h-3.5" />
-            <span>Free shipping on orders over ₹2,499 across India</span>
-          </div>
           <Link
             href={waLink}
             target="_blank"

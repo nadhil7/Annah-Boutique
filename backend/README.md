@@ -50,7 +50,7 @@ CORS_ORIGINS=https://annah.nadhil.in
 
 Render supplies `PORT`; do not replace it with `4001`. Set `NODE_ENV=production` in Render; the Dockerfile also defaults to production. The supervisor sets the internal service ports and local proxy URLs. Readiness uses 60 seconds by default; set `BACKEND_READINESS_TIMEOUT_MS` only when a slower database startup requires it. SMTP variables are only needed when `ADMIN_OTP_ENABLED=true`. The frontend must set `NEXT_PUBLIC_API_BASE_URL=https://<gateway-domain>/api/v1` in Vercel and then be redeployed because this value is compiled into the browser bundle.
 
-Run database operations as separate controlled deployment steps, never from `start:backend`:
+Database migrations run automatically before the backend services start. The startup script calls `pnpm db:migrate`, and the migration is idempotent, so Render applies it on each deploy/restart before serving traffic. Render must have a valid `DATABASE_URL` configured. For a manual local operation, you can also run:
 
 ```text
 pnpm db:migrate

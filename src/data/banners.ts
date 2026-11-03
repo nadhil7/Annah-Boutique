@@ -25,7 +25,7 @@ export interface PromoBanner {
 export const heroBanner: HeroBanner = {
   heading: "New Season. New You.",
   description:
-    "Discover our handpicked Festive Edit 2026 — timeless sarees, flowy Anarkalis, and statement co-ords crafted with love. Free shipping on all orders above ₹1,999.",
+    "Discover our handpicked Festive Edit 2026 — timeless sarees, flowy Anarkalis, and statement co-ords crafted with love.",
   ctaPrimary: {
     label: "Shop Collection",
     href: "/shop",

@@ -71,7 +71,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur bg-background/85 border-b border-border supports-[backdrop-filter]:bg-background/60">
       <div className="container-editorial">
-        <div className="h-16 lg:h-20 flex items-center justify-between">
+        <div className="h-16 lg:h-20 grid grid-cols-[auto_1fr_auto] items-center">
           <div className="lg:hidden flex items-center">
             <Button
               variant="ghost"
@@ -86,7 +86,7 @@ export default function Header() {
 
           <Link
             href="/"
-            className="lg:hidden absolute left-1/2 -translate-x-1/2 flex flex-col items-center"
+            className="lg:hidden justify-self-center flex flex-col items-center whitespace-nowrap text-center"
           >
             <span className="font-display text-xl font-semibold text-foreground tracking-tight">
               {brand.name}
