@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep variant image actions separated at every viewport width. The controls
+   are direct siblings in the variant card, so block flow prevents them from
+   colliding when the card becomes narrow on mobile. */
+[class~="bg-secondary/40"] > label,
+[class~="bg-secondary/40"] > button {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+
+[class~="bg-secondary/40"] > button {
+  margin-top: 0.5rem;
+  margin-left: 0;
+  text-align: left;
+}
+
 @layer base {
   :root {
     --background: 30 40% 98%;
