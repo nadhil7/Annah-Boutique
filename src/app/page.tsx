@@ -21,7 +21,7 @@ export default async function HomePage() {
       <SectionHeading eyebrow="Find your feeling" heading="Shop by occasion" subheading="Thoughtfully chosen pieces for every version of you." />
       <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
         {categories.map((c) => <Link key={c.slug} href={`/category/${c.slug}`} className="group relative aspect-[4/5] overflow-hidden rounded-xl bg-secondary">
-          {c.image ? <Image src={c.image} alt={c.name} fill sizes="(max-width:768px) 50vw, 25vw" className="object-cover transition-transform duration-700 group-hover:scale-105" /> : <div className="absolute inset-0 bg-[#d7c2b7]" />}
+          {c.image ? <Image src={c.image} alt={c.name} fill unoptimized sizes="(max-width:768px) 50vw, 25vw" className="object-cover transition-transform duration-700 group-hover:scale-105" /> : <div className="absolute inset-0 bg-[#d7c2b7]" />}
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
           <span className="absolute bottom-4 left-4 font-display text-2xl text-white">{c.name}</span>
         </Link>)}

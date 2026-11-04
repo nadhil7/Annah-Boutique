@@ -41,7 +41,7 @@ export default function AdminProductsPage() {
   async function uploadImage(productId: string, image: PendingImage, sortOrder: number, isPrimary: boolean, variantId?: string) {
     const fileName = image.file.name.replace(/[^A-Za-z0-9._-]/g, "-"); const signed = await adminApi.signedUpload({ fileName, contentType: image.file.type, fileSize: image.file.size, entityType: "product", entityId: productId });
     if (!signed.uploadUrl || !signed.path || !signed.token) throw new Error("Storage did not return a valid signed upload target");
-    const response = await fetch(signed.uploadUrl, { method: "POST", headers: { "Content-Type": image.file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: image.file }); const body = await response.text().catch(() => "");
+    const response = await fetch(signed.uploadUrl, { method: "PUT", headers: { "Content-Type": image.file.type, "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: image.file }); const body = await response.text().catch(() => "");
     if (!response.ok) { let detail = "Image upload failed"; try { const payload = JSON.parse(body) as { message?: string; error?: string }; detail = payload.message || payload.error || detail; } catch { detail = body.slice(0, 300) || detail; } throw new Error(`${detail} (${response.status})`); }
     const completed = await adminApi.completeUpload({ entityType: "product", entityId: productId, path: signed.path, variantId, altText: form.name, sortOrder, isPrimary }); if (!("url" in completed) || !completed.url) throw new Error("Storage completed without an image URL"); return completed;
   }

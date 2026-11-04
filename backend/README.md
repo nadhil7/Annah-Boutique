@@ -8,7 +8,7 @@ Copy `backend/.env.example` to the root `.env` (never commit it), set the databa
 
 The initial seed creates the configured admin and never overwrites an existing password. If an existing OTP-only admin needs a deliberate password recovery, set `ADMIN_PASSWORD` and run `pnpm --filter @annah/auth-service admin:reset-password`; this revokes existing sessions. Passwords must be at least 12 characters and are stored as bcrypt hashes.
 
-`pnpm db:seed` is idempotent and uses `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PHONE`; the active authentication flow is email/password unless `ADMIN_OTP_ENABLED=true`. All service secrets stay server-side. Public product images belong in the public Supabase bucket named by `SUPABASE_STORAGE_BUCKET`. The browser uploads directly to the returned `uploadUrl` using Supabase's required `POST` method and sends the resulting `path` to the completion endpoint. Category image paths are stored in the existing `categories.image` column and resolved to signed URLs at read time, so an expiring URL is never persisted. `SUPABASE_SERVICE_ROLE_KEY` is never returned to the browser.
+`pnpm db:seed` is idempotent and uses `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PHONE`; the active authentication flow is email/password unless `ADMIN_OTP_ENABLED=true`. All service secrets stay server-side. Public product images belong in the public Supabase bucket named by `SUPABASE_STORAGE_BUCKET`. The browser uploads directly to the returned `uploadUrl` using Supabase's required `PUT` method and sends the resulting `path` to the completion endpoint. Category image paths are stored in the existing `categories.image` column and resolved to signed URLs at read time, so an expiring URL is never persisted. `SUPABASE_SERVICE_ROLE_KEY` is never returned to the browser.
 
 ## Render
 
@@ -84,7 +84,7 @@ Successful responses use `{ "success": true, "data": ... }`; failures use `{ "su
 | POST `/api/v1/admin/products` | Admin | Product fields plus `variants[]` containing `sku,colour,size,price,availability`. Creates product and variants transactionally. |
 | PATCH `/api/v1/admin/products/:id` | Admin | Partial product fields; supplied `variants` replaces the variant set transactionally. |
 | DELETE `/api/v1/admin/products/:id` | Admin | Soft-deactivates product. |
-| POST `/api/v1/admin/media/signed-upload-url` | Admin | `{fileName,contentType,fileSize,entityType,entityId}`; JPEG/PNG/WebP up to 8 MiB. Returns Supabase `uploadUrl`, `token`, unique `path`, `expiresIn`; upload to the URL using `POST`. |
+| POST `/api/v1/admin/media/signed-upload-url` | Admin | `{fileName,contentType,fileSize,entityType,entityId}`; JPEG/PNG/WebP up to 8 MiB. Returns Supabase `uploadUrl`, `token`, unique `path`, `expiresIn`; upload to the URL using `PUT`. |
 | POST `/api/v1/admin/media/complete` | Admin | `{entityType,entityId,path,altText?,sortOrder?,isPrimary?}`; validates ownership/object and stores public metadata. |
 | PATCH `/api/v1/admin/media/:id` | Admin | `{altText?,sortOrder?,isPrimary?}` updates image text/order/primary selection. |
 | DELETE `/api/v1/admin/media/:id` | Admin | Deletes image metadata and object from Storage. |

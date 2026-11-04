@@ -30,6 +30,7 @@ export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
               src={cat.image || "/logo.svg"}
               alt={cat.name}
               fill
+              unoptimized
               sizes="(max-width: 640px) 50vw, (max-width: 1200px) 25vw, 20vw"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
             />
