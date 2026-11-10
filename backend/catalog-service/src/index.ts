@@ -91,6 +91,7 @@ const productSchema = z.object({
   variants: variantsSchema,
 });
 const productPatchSchema = productSchema.partial().extend({ variants: variantsSchema.optional() });
+const productIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(100) });
 const categorySchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z.string().trim().min(1).max(200).optional(),
@@ -443,6 +444,31 @@ app.delete("/admin/products/:id/permanent", requireAdmin, async (req, res, next)
     }
     await pool.query("DELETE FROM products WHERE id=$1", [req.params.id]);
     ok({ deleted: true }, res);
+  } catch (error) { next(error); }
+});
+
+app.post("/admin/products/bulk-deactivate", requireAdmin, async (req, res, next) => {
+  try {
+    const { ids } = productIdsSchema.parse(req.body);
+    const result = await pool.query("UPDATE products SET status='INACTIVE',updated_at=now() WHERE id=ANY($1::uuid[]) AND status='ACTIVE' RETURNING id", [ids]);
+    ok({ deactivated: result.rowCount || 0 }, res);
+  } catch (error) { next(error); }
+});
+
+app.post("/admin/products/bulk-permanent-delete", requireAdmin, async (req, res, next) => {
+  try {
+    const { ids } = productIdsSchema.parse(req.body);
+    const products = await pool.query("SELECT id,status FROM products WHERE id=ANY($1::uuid[])", [ids]);
+    if (products.rowCount !== ids.length) throw new ApiError(404, "PRODUCT_NOT_FOUND", "One or more selected products were not found");
+    if (products.rows.some((product) => product.status !== "INACTIVE")) throw new ApiError(409, "PRODUCT_MUST_BE_INACTIVE", "Only inactive products can be permanently deleted");
+    const images = await pool.query("SELECT storage_path FROM product_images WHERE product_id=ANY($1::uuid[])", [ids]);
+    const paths = images.rows.map((row) => row.storage_path).filter((path): path is string => typeof path === "string" && path.length > 0);
+    if (paths.length) {
+      const { error } = await supabase.storage.from(bucket).remove(paths);
+      if (error) throw new ApiError(502, "STORAGE_ERROR", "Unable to delete product images from storage; no products were deleted");
+    }
+    const result = await pool.query("DELETE FROM products WHERE id=ANY($1::uuid[]) AND status='INACTIVE'", [ids]);
+    ok({ deleted: result.rowCount || 0 }, res);
   } catch (error) { next(error); }
 });
 
