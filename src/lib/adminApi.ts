@@ -41,6 +41,7 @@ export const adminApi = {
   updateProduct: (id: string, input: unknown) => catalogFetch<AdminProduct>(`/admin/products/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   product: (id: string) => catalogFetch<AdminProduct>(`/admin/products/${id}`),
   deleteProduct: (id: string) => catalogFetch<{ deactivated: boolean }>(`/admin/products/${id}`, { method: "DELETE" }),
+  permanentlyDeleteProduct: (id: string) => catalogFetch<{ deleted: boolean }>(`/admin/products/${id}/permanent`, { method: "DELETE" }),
   signedUpload: (input: unknown) => catalogFetch<{ uploadUrl: string; token: string; path: string; requestId?: string }>("/admin/media/signed-upload-url", { method: "POST", body: JSON.stringify(input) }),
   reportUploadOutcome: (input: unknown) => catalogFetch<{ recorded: boolean }>("/admin/media/upload-outcome", { method: "POST", body: JSON.stringify(input) }),
   completeUpload: (input: unknown) => catalogFetch<CatalogImage | { path: string; publicUrl: string; category: Category }>("/admin/media/complete", { method: "POST", body: JSON.stringify(input) }),

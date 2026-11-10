@@ -137,17 +137,25 @@ async function signedImageRecords(records: ImageRecord[], requestIdValue = "unkn
     if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
   }
 
-  return records.map((record) => {
-    if (!record.storagePath) return record;
+  return records.flatMap((record) => {
+    if (!record.storagePath) return [record];
     const url = urls.get(record.storagePath);
     if (!url) {
-      console.error(JSON.stringify({ timestamp: new Date().toISOString(), service: "catalog-service", level: "error", operation: "image_retrieval", requestId: requestIdValue, bucket, objectPath: record.storagePath, errorMessage: "Signed URL missing from Storage response" }));
-      throw new ApiError(502, "STORAGE_ERROR", "Unable to resolve product image URL");
+      console.warn(JSON.stringify({ timestamp: new Date().toISOString(), service: "catalog-service", level: "warn", operation: "image_retrieval", requestId: requestIdValue, bucket, objectPath: record.storagePath, errorMessage: "Product image is missing from Storage; omitting stale image record" }));
+      return [];
     }
     const metadata = { ...record };
     delete metadata.storagePath;
     return { ...metadata, url };
   });
+}
+
+function productConflict(error: unknown, slug: string) {
+  const value = error && typeof error === "object" ? error as { code?: unknown; constraint?: unknown } : {};
+  if (value.code === "23505" && value.constraint === "products_slug_key") {
+    return new ApiError(409, "PRODUCT_SLUG_EXISTS", `A product with the name or slug "${slug}" already exists. Choose a different product name or slug.`);
+  }
+  return error;
 }
 
 async function withSignedImageUrls<T extends Record<string, unknown>>(row: T, requestIdValue?: string): Promise<T> {
@@ -157,13 +165,8 @@ async function withSignedImageUrls<T extends Record<string, unknown>>(row: T, re
 
 async function withSignedImageUrlsForRows<T extends Record<string, unknown>>(rows: T[], requestIdValue?: string): Promise<T[]> {
   const imageLists = rows.map((row) => Array.isArray(row.images) ? row.images as ImageRecord[] : []);
-  const resolvedImages = await signedImageRecords(imageLists.flat(), requestIdValue);
-  let offset = 0;
-  return rows.map((row, index) => {
-    const images = resolvedImages.slice(offset, offset + imageLists[index].length);
-    offset += imageLists[index].length;
-    return { ...row, images } as T;
-  });
+  const resolvedLists = await Promise.all(imageLists.map((images) => signedImageRecords(images, requestIdValue)));
+  return rows.map((row, index) => ({ ...row, images: resolvedLists[index] }) as T);
 }
 
 function csv(value: unknown) {
@@ -377,8 +380,9 @@ app.post("/admin/products", requireAdmin, async (req, res, next) => {
     const input = productSchema.parse(req.body);
     await assertCategory(input.categoryId);
     await client.query("BEGIN");
-    const result = await client.query("INSERT INTO products(name,slug,description,category_id,status,featured,seo_title,seo_description) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,name,slug,description,category_id AS \"categoryId\",status,featured,created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [input.name, input.slug || slugify(input.name), input.description, input.categoryId, input.status, input.featured, input.seoTitle || null, input.seoDescription || null]);
-    await saveVariants(client, result.rows[0].id, input.slug || slugify(input.name), input.variants);
+    const nextSlug = input.slug || slugify(input.name);
+    const result = await client.query("INSERT INTO products(name,slug,description,category_id,status,featured,seo_title,seo_description) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,name,slug,description,category_id AS \"categoryId\",status,featured,created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [input.name, nextSlug, input.description, input.categoryId, input.status, input.featured, input.seoTitle || null, input.seoDescription || null]);
+    await saveVariants(client, result.rows[0].id, nextSlug, input.variants);
     await client.query("COMMIT");
     const saved = await pool.query(`${productSelect} WHERE p.id=$1`, [result.rows[0].id]);
     imageLog("product_update", req, res, { entityType: "product", entityId: result.rows[0].id, fileCount: 0, databaseUpdate: "success", responseStatus: 201 });
@@ -386,7 +390,8 @@ app.post("/admin/products", requireAdmin, async (req, res, next) => {
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     imageLog("product_update", req, res, { entityType: "product", databaseUpdate: "failure", ...safeErrorDetails(error) }, "error");
-    next(error);
+    const body = req.body as { slug?: unknown; name?: unknown };
+    next(productConflict(error, typeof body.slug === "string" && body.slug.trim() ? body.slug.trim() : slugify(typeof body.name === "string" ? body.name : "product")));
   } finally { client.release(); }
 });
 
@@ -409,7 +414,8 @@ app.patch("/admin/products/:id", requireAdmin, async (req, res, next) => {
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     imageLog("product_update", req, res, { entityType: "product", entityId: req.params.id, databaseUpdate: "failure", ...safeErrorDetails(error) }, "error");
-    next(error);
+    const body = req.body as { slug?: unknown; name?: unknown };
+    next(productConflict(error, typeof body.slug === "string" && body.slug.trim() ? body.slug.trim() : slugify(typeof body.name === "string" ? body.name : "product")));
   } finally { client.release(); }
 });
 
@@ -418,6 +424,25 @@ app.delete("/admin/products/:id", requireAdmin, async (req, res, next) => {
     const result = await pool.query("UPDATE products SET status='INACTIVE',updated_at=now() WHERE id=$1 RETURNING id", [req.params.id]);
     if (!result.rowCount) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found");
     ok({ deactivated: true }, res);
+  } catch (error) { next(error); }
+});
+
+app.delete("/admin/products/:id/permanent", requireAdmin, async (req, res, next) => {
+  try {
+    const product = await pool.query("SELECT id,status FROM products WHERE id=$1", [req.params.id]);
+    if (!product.rowCount) throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found");
+    if (product.rows[0].status !== "INACTIVE") throw new ApiError(409, "PRODUCT_MUST_BE_INACTIVE", "Deactivate the product before permanently deleting it");
+    const images = await pool.query("SELECT storage_path FROM product_images WHERE product_id=$1", [req.params.id]);
+    const paths = images.rows.map((row) => row.storage_path).filter((path): path is string => typeof path === "string" && path.length > 0);
+    if (paths.length) {
+      const { error } = await supabase.storage.from(bucket).remove(paths);
+      if (error) {
+        imageLog("image_removal", req, res, { entityType: "product", entityId: req.params.id, objectCount: paths.length, ...safeErrorDetails(error) }, "error");
+        throw new ApiError(502, "STORAGE_ERROR", "Unable to delete product images from storage; the product was not deleted");
+      }
+    }
+    await pool.query("DELETE FROM products WHERE id=$1", [req.params.id]);
+    ok({ deleted: true }, res);
   } catch (error) { next(error); }
 });
 
