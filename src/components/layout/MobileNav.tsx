@@ -29,13 +29,6 @@ import {
 import { siteConfig } from "@/config/site";
 import { fetchCategories } from "@/lib/catalogApi";
 
-const collections = [
-  { label: "Wedding Edit", href: "/collection/wedding" },
-  { label: "Festive Collection", href: "/collection/festive" },
-  { label: "Summer Essentials", href: "/collection/summer" },
-  { label: "Handloom Heritage", href: "/collection/handloom" },
-];
-
 const flatLinks = [
   { label: "Home", href: "/", icon: Home },
   { label: "Shop", href: "/shop", icon: ShoppingBag },
@@ -76,7 +69,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
             <Accordion type="multiple" className="w-full">
               <AccordionItem value="categories" className="border-none px-4">
                 <AccordionTrigger className="text-sm font-semibold uppercase tracking-wider hover:no-underline py-3">
-                  Categories
+                  Collections
                 </AccordionTrigger>
                 <AccordionContent>
                   <ul className="space-y-1">
@@ -96,27 +89,6 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="collections" className="border-none px-4">
-                <AccordionTrigger className="text-sm font-semibold uppercase tracking-wider hover:no-underline py-3">
-                  Collections
-                </AccordionTrigger>
-                <AccordionContent>
-                  <ul className="space-y-1">
-                    {collections.map((col) => (
-                      <li key={col.href}>
-                        <Link
-                          href={col.href}
-                          onClick={() => onOpenChange(false)}
-                          className="flex items-center justify-between py-2 px-2 rounded-md text-sm text-muted-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors"
-                        >
-                          <span>{col.label}</span>
-                          <ChevronRight className="w-3.5 h-3.5 shrink-0 opacity-50" />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </AccordionContent>
-              </AccordionItem>
             </Accordion>
 
             <div className="border-t border-border my-4" />

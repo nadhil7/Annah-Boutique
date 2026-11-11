@@ -3,15 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Search, Heart, ShoppingBag, ChevronDown } from "lucide-react";
+import { Menu, Search, Heart, ShoppingBag, X } from "lucide-react";
 import MobileNav from "@/components/layout/MobileNav";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/stores/cartStore";
@@ -23,17 +16,8 @@ const brand = siteConfig;
 const navLinks = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
-  { label: "Categories", href: "/categories" },
+  { label: "Collections", href: "/collections" },
   { label: "New Arrivals", href: "/collection/new-arrivals" },
-  {
-    label: "Collections",
-    href: "/collections",
-    dropdown: [
-      { label: "Festive Edit", href: "/collection/festive-edit" },
-      { label: "Party Wear Edit", href: "/collection/party-wear-edit" },
-      { label: "Summer Edit", href: "/collection/summer-edit" },
-    ],
-  },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
@@ -55,7 +39,6 @@ export default function Header() {
   const router = useRouter();
   const cartCount = useCartStore((s) => s.getItemCount());
   const wishlistCount = useWishlistStore((s) => s.items.length);
-  const [openDropdown, setOpenDropdown] = React.useState<string | null>(null);
 
   if (pathname.startsWith("/admin")) return null;
 
@@ -72,7 +55,7 @@ export default function Header() {
     <header className="sticky top-0 z-40 w-full backdrop-blur bg-background/85 border-b border-border supports-[backdrop-filter]:bg-background/60">
       <div className="container-editorial">
         <div className="h-16 lg:h-20 grid grid-cols-[auto_1fr_auto] items-center">
-          <div className="lg:hidden flex items-center">
+          <div className={`${searchOpen ? "hidden" : "flex"} lg:hidden items-center`}>
             <Button
               variant="ghost"
               size="icon"
@@ -86,7 +69,7 @@ export default function Header() {
 
           <Link
             href="/"
-            className="lg:hidden justify-self-center flex flex-col items-center whitespace-nowrap text-center"
+            className={`${searchOpen ? "hidden" : "flex"} lg:hidden justify-self-center flex-col items-center whitespace-nowrap text-center`}
           >
             <span className="font-display text-xl font-semibold text-foreground tracking-tight">
               {brand.name}
@@ -103,86 +86,43 @@ export default function Header() {
               </span>
             </Link>
 
-            <nav className="flex items-center gap-7">
+            <nav className={`${searchOpen ? "hidden" : "flex"} items-center gap-7`} aria-hidden={searchOpen}>
               {navLinks.map((link) => (
                 <div
                   key={link.label}
                   className="relative"
-                  onMouseEnter={() =>
-                    link.dropdown && setOpenDropdown(link.label)
-                  }
-                  onMouseLeave={() => setOpenDropdown(null)}
                 >
                   <Link
                     href={link.href}
                     className="text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/80 hover:text-foreground transition-colors inline-flex items-center gap-1 py-1 relative group"
                   >
                     {link.label}
-                    {link.dropdown && (
-                      <ChevronDown className="w-3 h-3 shrink-0 opacity-60" />
-                    )}
                     <span className="absolute -bottom-0.5 left-0 w-0 h-[1.5px] bg-gold transition-all group-hover:w-full" />
                   </Link>
-
-                  {link.dropdown && openDropdown === link.label && (
-                    <div className="absolute top-full left-0 pt-2 min-w-[220px]">
-                      <div className="bg-popover border border-border rounded-md shadow-premium p-2 overflow-hidden animate-fade-in">
-                        {link.dropdown.map((item) => (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            className="block px-3 py-2 text-sm rounded-sm hover:bg-secondary hover:text-secondary-foreground transition-colors"
-                          >
-                            {item.label}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </nav>
           </div>
 
           <div className="flex items-center gap-1 lg:gap-2">
-            <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Search">
-                  <Search className="w-5 h-5" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                  <DialogTitle>Search</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSearch} className="space-y-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      autoFocus
-                      placeholder="Search sarees, kurtis, dresses..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 h-11 text-base"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button type="submit" variant="gold-outline">
-                      Search
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+            {searchOpen ? (
+              <form onSubmit={handleSearch} className="flex h-10 w-[min(360px,calc(100vw-2rem))] items-center rounded-full border border-gold bg-background px-3 shadow-soft animate-in fade-in slide-in-from-right-2 lg:w-[360px]">
+                <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                <Input autoFocus placeholder="Search sarees, kurtis, dresses…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0" />
+                <button type="button" onClick={() => { setSearchQuery(""); setSearchOpen(false); }} aria-label="Close search" className="ml-2 rounded-full p-1 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+              </form>
+            ) : (
+              <Button variant="ghost" size="icon" aria-label="Search" onClick={() => setSearchOpen(true)}><Search className="w-5 h-5" /></Button>
+            )}
 
-            <Link href="/wishlist">
+            <Link href="/wishlist" className={searchOpen ? "hidden lg:block" : "block"}>
               <Button variant="ghost" size="icon" aria-label="Wishlist" className="relative">
                 <Heart className="w-5 h-5" />
                 <IconBadge count={wishlistCount} />
               </Button>
             </Link>
 
-            <Link href="/cart">
+            <Link href="/cart" className={searchOpen ? "hidden lg:block" : "block"}>
               <Button variant="ghost" size="icon" aria-label="Cart" className="relative">
                 <ShoppingBag className="w-5 h-5" />
                 <IconBadge count={cartCount} />

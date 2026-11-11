@@ -144,7 +144,7 @@ function queryParams(query: ProductQuery) {
   if (query.priceMin !== undefined) params.set("minPrice", String(query.priceMin));
   if (query.priceMax !== undefined) params.set("maxPrice", String(query.priceMax));
   if (query.inStockOnly) params.set("availability", "AVAILABLE");
-  params.set("sort", query.sort === "price-asc" ? "price_asc" : query.sort === "price-desc" ? "price_desc" : query.sort === "popular" ? "featured" : "newest");
+  params.set("sort", query.sort === "price-asc" ? "price_asc" : query.sort === "price-desc" ? "price_desc" : query.sort === "popular" || query.sort === "featured" ? "featured" : "newest");
   params.set("page", String(query.page || 1));
   params.set("limit", String(query.limit || 24));
   return params.toString();

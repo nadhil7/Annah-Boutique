@@ -657,7 +657,10 @@ app.post("/order-inquiries", async (req, res, next) => {
     await client.query("INSERT INTO analytics_events(event_type,anonymous_id,metadata) VALUES('WHATSAPP_ORDER_INITIATED',$1,$2)", [input.anonymousId || null, { inquiryId: order.rows[0].id }]);
     await client.query("COMMIT");
     const message = ["Hello Annah Boutique,", "", "I would like to enquire about:", "", ...lines.flatMap((product, index) => [`${index + 1}. ${product.name}`, `   Colour: ${product.colour}`, `   Size: ${product.size}`, `   Quantity: ${product.quantity}`, `   Price: ₹${Number(product.price).toFixed(2)}`, ""]), `Total: ₹${total.toFixed(2)}`, "", "Please confirm availability and ordering details."].join("\n");
-    const phone = (process.env.WHATSAPP_NUMBER || "").replace(/\D/g, "");
+    const configuredPhone = process.env.WHATSAPP_NUMBER || "918089632481";
+    let phone = configuredPhone.replace(/\D/g, "").replace(/^00/, "");
+    if (phone.length === 10) phone = `91${phone}`;
+    if (phone.length === 11 && phone.startsWith("0")) phone = `91${phone.slice(1)}`;
     ok({ inquiry: order.rows[0], message, whatsappUrl: phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : null }, res);
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
 });
