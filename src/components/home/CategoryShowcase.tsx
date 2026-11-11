@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Category } from "@/types/_shims";
-import { siteConfig } from "@/config/_shims";
 import { cn } from "@/lib/utils";
 
 interface CategoryShowcaseProps {
@@ -35,14 +34,12 @@ export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
             />
 
-            <div className="absolute inset-0 bg-gradient-to-t from-foreground/75 via-foreground/15 to-transparent" />
-
-            <div className="absolute bottom-0 left-0 w-full p-5 z-10">
-              <h3 className="text-white font-display font-medium tracking-tight text-heading-2 mb-0.5 drop-shadow-sm">
+            <div className="p-4 md:p-5 bg-background">
+              <h3 className="text-foreground font-display font-medium tracking-tight text-xl md:text-2xl">
                 {cat.name}
               </h3>
-              <p className="text-white/85 text-xs md:text-sm font-medium opacity-90">
-                Shop {siteConfig.name}
+              <p className="mt-1 text-sm text-muted-foreground">
+                Explore collection <span aria-hidden="true">→</span>
               </p>
             </div>
           </Link>

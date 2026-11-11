@@ -68,8 +68,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-const slugSchema = z.string().trim().max(200).optional().or(z.literal(""));
-
 const variantsSchema = z.array(z.object({
   id: z.string().uuid().optional(),
   sku: z.string().trim().max(80).optional(),
@@ -81,7 +79,6 @@ const variantsSchema = z.array(z.object({
 
 const productSchema = z.object({
   name: z.string().trim().min(1).max(180),
-  slug: slugSchema,
   description: z.string().max(12000).default(""),
   categoryId: z.string().uuid(),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
@@ -94,7 +91,6 @@ const productPatchSchema = productSchema.partial().extend({ variants: variantsSc
 const productIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(100) });
 const categorySchema = z.object({
   name: z.string().trim().min(1).max(120),
-  slug: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(2000).default(""),
   image: z.string().max(2000).refine((value) => /^https?:\/\//i.test(value) || isStoragePath(value, "categories/"), "Image must be a URL or category storage path").nullable().optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
@@ -285,7 +281,7 @@ app.get("/admin/categories", requireAdmin, async (req, res, next) => {
 app.post("/admin/categories", requireAdmin, async (req, res, next) => {
   try {
     const input = categorySchema.parse(req.body);
-    const result = await pool.query("INSERT INTO categories(name,slug,description,image,status,sort_order) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,slug,description,image,status,sort_order AS \"sortOrder\",created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [input.name, input.slug || slugify(input.name), input.description, input.image || null, input.status, input.sortOrder]);
+    const result = await pool.query("INSERT INTO categories(name,slug,description,image,status,sort_order) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,slug,description,image,status,sort_order AS \"sortOrder\",created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [input.name, slugify(input.name), input.description, input.image || null, input.status, input.sortOrder]);
     imageLog("category_update", req, res, { entityId: result.rows[0].id, databaseUpdate: "success", responseStatus: 201 });
     res.status(201); ok(await resolveCategoryImage(result.rows[0] as Record<string, unknown>, req, res), res);
   } catch (error) {
@@ -300,7 +296,7 @@ app.patch("/admin/categories/:id", requireAdmin, async (req, res, next) => {
     const current = await pool.query("SELECT * FROM categories WHERE id=$1", [req.params.id]);
     if (!current.rowCount) throw new ApiError(404, "CATEGORY_NOT_FOUND", "Category not found");
     const nextName = input.name ?? current.rows[0].name;
-    const result = await pool.query("UPDATE categories SET name=$2,slug=$3,description=$4,image=$5,status=$6,sort_order=$7,updated_at=now() WHERE id=$1 RETURNING id,name,slug,description,image,status,sort_order AS \"sortOrder\",created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [req.params.id, nextName, input.slug || (input.name ? slugify(input.name) : current.rows[0].slug), input.description ?? current.rows[0].description, input.image === undefined ? current.rows[0].image : input.image, input.status ?? current.rows[0].status, input.sortOrder ?? current.rows[0].sort_order]);
+    const result = await pool.query("UPDATE categories SET name=$2,slug=$3,description=$4,image=$5,status=$6,sort_order=$7,updated_at=now() WHERE id=$1 RETURNING id,name,slug,description,image,status,sort_order AS \"sortOrder\",created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [req.params.id, nextName, slugify(nextName), input.description ?? current.rows[0].description, input.image === undefined ? current.rows[0].image : input.image, input.status ?? current.rows[0].status, input.sortOrder ?? current.rows[0].sort_order]);
     imageLog("category_update", req, res, { entityId: req.params.id, databaseUpdate: "success", responseStatus: 200 });
     ok(await resolveCategoryImage(result.rows[0] as Record<string, unknown>, req, res), res);
   } catch (error) {
@@ -381,7 +377,7 @@ app.post("/admin/products", requireAdmin, async (req, res, next) => {
     const input = productSchema.parse(req.body);
     await assertCategory(input.categoryId);
     await client.query("BEGIN");
-    const nextSlug = input.slug || slugify(input.name);
+    const nextSlug = slugify(input.name);
     const result = await client.query("INSERT INTO products(name,slug,description,category_id,status,featured,seo_title,seo_description) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,name,slug,description,category_id AS \"categoryId\",status,featured,created_at AS \"createdAt\",updated_at AS \"updatedAt\"", [input.name, nextSlug, input.description, input.categoryId, input.status, input.featured, input.seoTitle || null, input.seoDescription || null]);
     await saveVariants(client, result.rows[0].id, nextSlug, input.variants);
     await client.query("COMMIT");
@@ -405,7 +401,7 @@ app.patch("/admin/products/:id", requireAdmin, async (req, res, next) => {
     if (input.categoryId) await assertCategory(input.categoryId);
     await client.query("BEGIN");
     const row = current.rows[0];
-    const nextSlug = input.slug || (input.name ? slugify(input.name) : row.slug);
+    const nextSlug = input.name ? slugify(input.name) : row.slug;
     await client.query("UPDATE products SET name=$2,slug=$3,description=$4,category_id=$5,status=$6,featured=$7,seo_title=$8,seo_description=$9,updated_at=now() WHERE id=$1", [req.params.id, input.name ?? row.name, nextSlug, input.description ?? row.description, input.categoryId ?? row.category_id, input.status ?? row.status, input.featured ?? row.featured, input.seoTitle ?? row.seo_title, input.seoDescription ?? row.seo_description]);
     if (input.variants) await saveVariants(client, String(req.params.id), nextSlug, input.variants, true);
     await client.query("COMMIT");
