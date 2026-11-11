@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { Product } from "@/types/product";
-import { fetchProducts } from "@/lib/catalogApi";
 import { WishlistContent } from "@/components/product/WishlistContent";
+
+type ProductsResponse = {
+  success: boolean;
+  data?: Product[];
+  error?: string;
+};
 
 export function WishlistPageContent() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -12,8 +17,18 @@ export function WishlistPageContent() {
 
   useEffect(() => {
     let active = true;
-    fetchProducts({ limit: 60 })
-      .then((result) => { if (active) setProducts(result.items); })
+    // Keep this request same-origin. The catalog base URL may be private or
+    // configured as localhost in production, while this page runs in the
+    // customer's browser.
+    fetch("/api/products?limit=60", { credentials: "same-origin" })
+      .then(async (response) => {
+        const result = (await response.json()) as ProductsResponse;
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.error || "Failed to load products");
+        }
+        return result.data;
+      })
+      .then((items) => { if (active) setProducts(items); })
       .catch(() => { if (active) setError("We could not load your saved pieces right now. Please try again."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
