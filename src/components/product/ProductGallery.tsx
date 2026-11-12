@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { Expand } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -50,12 +49,10 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
               )}
               aria-label={`View image ${idx + 1}`}
             >
-              <Image
+              <img
                 src={img}
                 alt={`${name} view ${idx + 1}`}
-                fill
-                sizes="80px"
-                className="object-cover"
+                className="absolute inset-0 h-full w-full object-cover"
               />
             </button>
           ))}
@@ -68,14 +65,11 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
             onMouseLeave={() => setIsZooming(false)}
             onMouseMove={handleMouseMove}
           >
-            <Image
+            <img
               src={safeImages[selectedIndex]}
               alt={`${name} main view`}
-              fill
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              priority
               className={cn(
-                "object-cover transition-transform duration-200 ease-out",
+                "absolute inset-0 h-full w-full object-cover transition-transform duration-200 ease-out",
                 isZooming && "scale-150"
               )}
               style={isZooming ? {
@@ -97,12 +91,10 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
               </DialogTrigger>
               <DialogContent className="max-w-6xl w-[95vw] p-0 overflow-hidden">
                 <div className="relative aspect-square max-h-[85vh]">
-                  <Image
+                  <img
                     src={safeImages[selectedIndex]}
                     alt={name}
-                    fill
-                    sizes="90vw"
-                    className="object-contain"
+                    className="absolute inset-0 h-full w-full object-contain"
                   />
                 </div>
                 <div className="flex gap-2 p-3 overflow-x-auto">
@@ -118,11 +110,10 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
                           : "border-border"
                       )}
                     >
-                      <Image
+                      <img
                         src={img}
                         alt={`${name} thumbnail ${idx + 1}`}
-                        fill
-                        className="object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                       />
                     </button>
                   ))}
@@ -141,13 +132,10 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
               className="snap-start w-full flex-shrink-0 pr-3 first:pl-0 last:pr-0"
             >
               <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-secondary">
-                <Image
+                <img
                   src={img}
                   alt={`${name} view ${idx + 1}`}
-                  fill
-                  sizes="100vw"
-                  priority={idx === 0}
-                  className="object-cover"
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
               </div>
             </div>
