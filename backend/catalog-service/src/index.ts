@@ -72,6 +72,7 @@ const variantsSchema = z.array(z.object({
   id: z.string().uuid().optional(),
   sku: z.string().trim().max(80).optional(),
   colour: z.string().trim().min(1).max(60),
+  colourHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
   size: z.string().trim().min(1).max(30),
   price: z.number().finite().nonnegative(),
   availability: z.enum(["AVAILABLE", "UNAVAILABLE"]),
@@ -103,7 +104,7 @@ const productSelect = `
     c.name AS "categoryName", c.slug AS category, p.status, p.featured,
     p.created_at AS "createdAt", p.updated_at AS "updatedAt",
     COALESCE((SELECT json_agg(json_build_object(
-      'id', v.id, 'sku', v.sku, 'colour', v.colour, 'size', v.size,
+      'id', v.id, 'sku', v.sku, 'colour', v.colour, 'colourHex', v.colour_hex, 'size', v.size,
       'price', v.price, 'availability', v.availability
     ) ORDER BY v.colour, v.size) FROM product_variants v WHERE v.product_id=p.id), '[]') AS variants,
     COALESCE((SELECT json_agg(json_build_object(
@@ -363,12 +364,12 @@ async function saveVariants(client: DbClient, productId: string, productSlug: st
   const rows = variants.map((variant, index) => {
     const generatedSku = `${slugify(productSlug) || "product"}-${slugify(variant.colour) || "colour"}-${slugify(variant.size) || "size"}-${index + 1}-${randomUUID().slice(0, 8)}`;
     const preservedSku = existingSkus.get(`${variant.colour.toLowerCase()}::${variant.size.toLowerCase()}`);
-    const row = [productId, variant.sku?.trim() || preservedSku || generatedSku, variant.colour, variant.size, variant.price, variant.availability];
+    const row = [productId, variant.sku?.trim() || preservedSku || generatedSku, variant.colour, variant.colourHex || null, variant.size, variant.price, variant.availability];
     const offset = values.length;
     values.push(...row);
-    return `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5},$${offset + 6})`;
+    return `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5},$${offset + 6},$${offset + 7})`;
   });
-  await client.query(`INSERT INTO product_variants(product_id,sku,colour,size,price,availability) VALUES ${rows.join(",")}`, values);
+  await client.query(`INSERT INTO product_variants(product_id,sku,colour,colour_hex,size,price,availability) VALUES ${rows.join(",")}`, values);
 }
 
 app.post("/admin/products", requireAdmin, async (req, res, next) => {

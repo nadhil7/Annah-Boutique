@@ -4,6 +4,7 @@ export type CatalogVariant = {
   id: string;
   sku: string;
   colour: string;
+  colourHex?: string | null;
   size: string;
   price: number;
   availability: "AVAILABLE" | "UNAVAILABLE";

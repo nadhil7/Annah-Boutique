@@ -4,6 +4,7 @@ import type { Category } from "@/types/product";
 export type AdminVariant = {
   sku: string;
   colour: string;
+  colourHex?: string | null;
   size: string;
   price: number;
   availability: "AVAILABLE" | "UNAVAILABLE";

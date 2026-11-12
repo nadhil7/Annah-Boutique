@@ -31,9 +31,12 @@ const COLOR_MAP: Record<string, string> = {
 
 const DEFAULT_COLOR = "#A8A8A8";
 
-function getColorValue(colorName: string): string {
+function getColorValue(colorName: string, colourHex?: string | null): string {
+  if (colourHex) return colourHex;
   const key = colorName.toLowerCase().replace(/[\s_-]/g, "");
-  return COLOR_MAP[key] || DEFAULT_COLOR;
+  if (COLOR_MAP[key]) return COLOR_MAP[key];
+  const parts = colorName.split(/\s*(?:\/|\+|&|,| and )\s*/i).map((part) => COLOR_MAP[part.toLowerCase().replace(/[\s_-]/g, "")]).filter(Boolean);
+  return parts.length > 1 ? `linear-gradient(135deg, ${parts.map((part, index) => `${part} ${index * 100 / parts.length}% ${(index + 1) * 100 / parts.length}%`).join(", ")})` : DEFAULT_COLOR;
 }
 
 const SIZE_CHART_DATA = [
@@ -110,7 +113,7 @@ export function ProductVariantSelect({
           <div className="flex flex-wrap gap-2.5">
             {product.colors.map((color) => {
               const isSelected = selectedColor === color;
-              const bg = getColorValue(color);
+              const bg = getColorValue(color, product.variants?.find((variant) => variant.colour === color)?.colourHex);
               return (
                 <button
                   key={color}
@@ -125,7 +128,7 @@ export function ProductVariantSelect({
                       : "border-border hover:border-muted-foreground/50"
                   )}
                   style={{
-                    backgroundColor: bg,
+                    background: bg,
                     ...(bg === "#FFFFFF"
                       ? { borderColor: "hsl(var(--border))", boxShadow: "inset 0 0 0 1px hsl(var(--border))" }
                       : {}),

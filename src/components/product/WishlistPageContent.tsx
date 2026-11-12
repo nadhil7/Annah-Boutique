@@ -23,7 +23,7 @@ export function WishlistPageContent() {
     fetch("/api/products?limit=60", { credentials: "same-origin" })
       .then(async (response) => {
         const result = (await response.json()) as ProductsResponse;
-        if (!response.ok || !result.success || !result.data) {
+        if (!response.ok || !result.success || !Array.isArray(result.data)) {
           throw new Error(result.error || "Failed to load products");
         }
         return result.data;

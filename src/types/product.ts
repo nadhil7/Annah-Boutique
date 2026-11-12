@@ -26,6 +26,7 @@ export interface Product {
     id: string;
     sku: string;
     colour: string;
+    colourHex?: string | null;
     size: string;
     price: number;
     availability: "AVAILABLE" | "UNAVAILABLE";
