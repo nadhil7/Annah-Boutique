@@ -72,7 +72,7 @@ const variantsSchema = z.array(z.object({
   id: z.string().uuid().optional(),
   sku: z.string().trim().max(80).optional(),
   colour: z.string().trim().min(1).max(60),
-  colourHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().nullable(),
+  colourHex: z.string().regex(/^#[0-9A-Fa-f]{6}(,#[0-9A-Fa-f]{6})?$/).optional().nullable(),
   size: z.string().trim().min(1).max(30),
   price: z.number().finite().nonnegative(),
   availability: z.enum(["AVAILABLE", "UNAVAILABLE"]),

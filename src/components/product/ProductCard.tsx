@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Heart, Star } from "lucide-react";
 import type { Product } from "@/types/product";
@@ -38,7 +37,7 @@ export function ProductCard({
         "group/productcard relative block w-full transition-all duration-300 hover:-translate-y-1"
       )}
     >
-      <div className="relative overflow-hidden rounded-2xl bg-white shadow-card group-hover:shadow-premium transition-shadow duration-300">
+      <div data-priority={priority ? "true" : undefined} className="relative overflow-hidden rounded-2xl bg-white shadow-card group-hover:shadow-premium transition-shadow duration-300">
         <button
           type="button"
           onClick={handleWishlistToggle}
@@ -61,24 +60,18 @@ export function ProductCard({
         </button>
 
         <div className="relative aspect-[3/4] bg-secondary overflow-hidden rounded-2xl">
-          <Image
+          <img
             src={product.images[0] || "/placeholder-product.svg"}
             alt={product.name}
-            fill
-            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-            priority={priority}
           />
 
           {showSecondaryHover && product.images[1] && (
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out">
-              <Image
+              <img
                 src={product.images[1]}
                 alt={`${product.name} alternate view`}
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
                 className="w-full h-full object-cover"
-                priority={false}
               />
             </div>
           )}

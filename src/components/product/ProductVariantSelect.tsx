@@ -32,7 +32,11 @@ const COLOR_MAP: Record<string, string> = {
 const DEFAULT_COLOR = "#A8A8A8";
 
 function getColorValue(colorName: string, colourHex?: string | null): string {
-  if (colourHex) return colourHex;
+  if (colourHex) {
+    const palette = colourHex.split(",").filter(Boolean);
+    if (palette.length > 1) return `linear-gradient(135deg, ${palette[0]} 0 50%, ${palette[1]} 50% 100%)`;
+    return palette[0];
+  }
   const key = colorName.toLowerCase().replace(/[\s_-]/g, "");
   if (COLOR_MAP[key]) return COLOR_MAP[key];
   const parts = colorName.split(/\s*(?:\/|\+|&|,| and )\s*/i).map((part) => COLOR_MAP[part.toLowerCase().replace(/[\s_-]/g, "")]).filter(Boolean);
